@@ -1,0 +1,40 @@
+name: campus_stay
+description: "CampusStay - Real-time student accommodation and roommate matching platform."
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase (Auth, PostgreSQL DB queries, realtime WAL broadcast and storage)
+  supabase_flutter: ^2.2.0
+
+  # State Management & Utilities
+  provider: ^6.0.5
+  intl: ^0.18.1
+  image_picker: ^1.0.1
+  cupertino_icons: ^1.0.5
+  geolocator: ^10.1.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  url_launcher: ^6.1.14
+  http: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.1
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/logo.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo.png
