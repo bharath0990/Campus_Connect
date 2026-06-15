@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusStay - Smart Student Co-Living & Roommate Finder</title>
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="CampusStay makes student co-living seamless. Match with compatible roommates, split monthly rent and utility bills dynamically, pay shares securely, and raise maintenance tickets.">
+  <meta name="keywords" content="student housing, roommate finder, bill splitter, co-living, student PG rent">
+  <link rel="icon" type="image/png" href="assets/app_hero_mockup.png">
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="logo">
+        <i class="fa-solid fa-hotel logo-icon"></i>
+        <span>Campus<span>Stay</span></span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#matcher">Roommate Matcher</a>
+        <a href="#splitter">Bill Splitter</a>
+        <a href="#download" class="nav-btn">Get App</a>
+      </nav>
+      <button class="mobile-toggle" aria-label="Toggle Menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-bg-glow glow-1"></div>
+    <div class="hero-bg-glow glow-2"></div>
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="badge">
+          <i class="fa-solid fa-sparkles"></i> The Ultimate Student Co-Living Hub
+        </div>
+        <h1>Coliving for Students, <span class="gradient-text">Simplified.</span></h1>
+        <p>Find highly compatible roommates, split rent & utilities dynamically, pay bills via secure gateway, and handle maintenance SLAs all in one sleek dashboard.</p>
+        
+        <div class="hero-ctas">
+          <a href="#download" class="btn btn-primary">
+            <i class="fa-brands fa-google-play"></i> Get on Android
+          </a>
+          <a href="#matcher" class="btn btn-secondary">
+            Try Matcher Demo
+          </a>
+        </div>
+        
+        <div class="stats-row">
+          <div class="stat-item">
+            <h3>15K+</h3>
+            <p>Active Students</p>
+          </div>
+          <div class="stat-item">
+            <h3>98%</h3>
+            <p>Match Accuracy</p>
+          </div>
+          <div class="stat-item">
+            <h3>₹2.4M+</h3>
+            <p>Bills Split Safely</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="hero-mockup">
+        <div class="mockup-wrapper">
+          <img src="assets/app_hero_mockup.png" alt="CampusStay Mobile UI Mockup" class="mockup-img">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Bento Section -->
+  <section id="features" class="features">
+    <div class="container">
+      <div class="section-header">
+        <h2>Smart Features For Smart Living</h2>
+        <p>Everything you need to eliminate co-living friction and focus on college life.</p>
+      </div>
+      
+      <div class="bento-grid">
+        <!-- Feature 1: Roommate Matching -->
+        <div class="bento-card card-double">
+          <div class="card-icon cyan-bg"><i class="fa-solid fa-people-arrows"></i></div>
+          <h3>Compatible Roommate Matcher</h3>
+          <p>We analyze budget, sleep schedules, cleanliness habits, diet preferences, and social behavior using our advanced matchmaking algorithm. No more roommate nightmare stories.</p>
+          <div class="matching-preview">
+            <div class="preview-user">
+              <img src="https://api.dicebear.com/7.x/adventurer/png?seed=Alex" alt="Alex">
+              <span>Alex</span>
+            </div>
+            <div class="progress-bar-wrapper">
+              <div class="preview-percentage">92% Match</div>
+              <div class="progress-bar"><div class="progress-fill" style="width: 92%"></div></div>
+            </div>
+            <div class="preview-user">
+              <img src="https://api.dicebear.com/7.x/adventurer/png?seed=Sarah" alt="Sarah">
+              <span>You</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 2: Smart Bill Splitter -->
+        <div class="bento-card">
+          <div class="card-icon coral-bg"><i class="fa-solid fa-calculator"></i></div>
+          <h3>Real-Time Expense Splitter</h3>
+          <p>Instantly divide landlord bills and personal purchases based on the exact active headcount in the room.</p>
+          <div class="split-pills">
+            <span class="split-pill"><i class="fa-solid fa-bolt"></i> Electricity</span>
+            <span class="split-pill"><i class="fa-solid fa-wifi"></i> WiFi</span>
+            <span class="split-pill"><i class="fa-solid fa-broom"></i> Maid</span>
+          </div>
+        </div>
+
+        <!-- Feature 3: Razorpay Payments -->
+        <div class="bento-card">
+          <div class="card-icon green-bg"><i class="fa-solid fa-shield-halved"></i></div>
+          <h3>Secure Direct Checkout</h3>
+          <p>Integrates with Razorpay for deposit lock, monthly rent collection, and utility share payments securely.</p>
+          <div class="gateway-badge">
+            <i class="fa-solid fa-shield-check"></i> Razorpay Secure
+          </div>
+        </div>
+
+        <!-- Feature 4: SLA Tickets -->
+        <div class="bento-card card-double">
+          <div class="card-icon purple-bg"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+          <h3>24-Hour Maintenance SLA</h3>
+          <p>Submit tickets for leaks, electrical faults, or appliance issues directly through the app. Landlords are bound by a 24-hour response SLA target to keep your home running smoothly.</p>
+          <div class="timeline-preview">
+            <div class="timeline-step done">
+              <div class="step-dot"><i class="fa-solid fa-check"></i></div>
+              <span>Ticket Filed</span>
+            </div>
+            <div class="timeline-step active">
+              <div class="step-dot"></div>
+              <span>Acknowledged</span>
+            </div>
+            <div class="timeline-step">
+              <div class="step-dot"></div>
+              <span>Resolved (SLA)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Roommate Matcher Demo Section -->
+  <section id="matcher" class="interactive-section matcher-section">
+    <div class="container grid-2">
+      <div class="info-side">
+        <span class="accent-title">Interactive Simulator</span>
+        <h2>Find Your Perfect Match</h2>
+        <p>Adjust the preferences below to simulate our matchmaking system and discover your compatibility profile. Our app factors in multiple dimensions to match you with compatible peers.</p>
+        
+        <div class="matcher-inputs">
+          <div class="input-group">
+            <label>Monthly Budget Range (₹)</label>
+            <div class="range-sliders">
+              <input type="range" id="budget-slider" min="2000" max="15000" value="8000" step="500">
+              <div class="range-values">Max Rent: <span id="budget-val">₹8,000</span>/mo</div>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Sleep Habits</label>
+            <div class="segmented-control" id="sleep-habit">
+              <button class="segment-btn active" data-value="flexible">Flexible</button>
+              <button class="segment-btn" data-value="early">Early Bird</button>
+              <button class="segment-btn" data-value="night">Night Owl</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Cleanliness Priority</label>
+            <div class="segmented-control" id="cleanliness">
+              <button class="segment-btn" data-value="low">Chill</button>
+              <button class="segment-btn active" data-value="medium">Medium</button>
+              <button class="segment-btn" data-value="high">Clean Freak</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Dietary Choices</label>
+            <div class="segmented-control" id="dietary">
+              <button class="segment-btn active" data-value="any">Any</button>
+              <button class="segment-btn" data-value="veg">Veg Only</button>
+              <button class="segment-btn" data-value="nonveg">Non-Veg</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="display-side">
+        <div class="glass-card match-card">
+          <div class="match-percentage-ring">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" class="ring-bg"></circle>
+              <circle cx="50" cy="50" r="40" class="ring-fill" id="match-svg-fill"></circle>
+            </svg>
+            <div class="percentage-text"><span id="match-percent">88</span>%</div>
+          </div>
+          
+          <div class="matched-profile" id="match-profile">
+            <img src="https://api.dicebear.com/7.x/adventurer/png?seed=Felix" id="profile-avatar" alt="Roommate Avatar">
+            <h3 id="profile-name">Felix Carter</h3>
+            <span class="college-tag">Bits Pilani Student</span>
+            
+            <div class="preference-tags" id="profile-tags">
+              <span class="tag">Night Owl</span>
+              <span class="tag">Medium Clean</span>
+              <span class="tag">Veg</span>
+            </div>
+            
+            <div class="compatibility-breakdown">
+              <div class="breakdown-item">
+                <span>Budget Match</span>
+                <span class="score" id="score-budget">30/30</span>
+              </div>
+              <div class="breakdown-item">
+                <span>Sleep Schedule</span>
+                <span class="score" id="score-sleep">25/25</span>
+              </div>
+              <div class="breakdown-item">
+                <span>Cleanliness Habits</span>
+                <span class="score" id="score-clean">20/25</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Bill Splitter Section -->
+  <section id="splitter" class="interactive-section splitter-section">
+    <div class="container grid-2">
+      <div class="display-side order-mobile-2">
+        <div class="glass-card splitter-card">
+          <div class="splitter-header">
+            <h3>Calculated Room Split</h3>
+            <div class="roommate-counter-badge">
+              <i class="fa-solid fa-users"></i> <span id="split-members-badge">3</span> Active Members
+            </div>
+          </div>
+          
+          <div class="splitter-breakdown">
+            <div class="breakdown-row">
+              <span>Room Rent Split</span>
+              <span class="bold-val" id="split-rent">₹4,000</span>
+            </div>
+            <div class="breakdown-row">
+              <span>Electricity Split</span>
+              <span class="bold-val" id="split-electricity">₹500</span>
+            </div>
+            <div class="breakdown-row">
+              <span>Maid Split</span>
+              <span class="bold-val" id="split-maid">₹667</span>
+            </div>
+            <div class="breakdown-row">
+              <span>WiFi Split</span>
+              <span class="bold-val" id="split-wifi">₹300</span>
+            </div>
+            <hr class="card-divider">
+            <div class="breakdown-total">
+              <span>Your Monthly Share</span>
+              <span class="total-val" id="split-total">₹5,467</span>
+            </div>
+          </div>
+          
+          <button class="btn btn-primary pay-simulate-btn" id="simulate-pay-btn">
+            <i class="fa-solid fa-credit-card"></i> Pay Share via Razorpay
+          </button>
+        </div>
+      </div>
+
+      <div class="info-side order-mobile-1">
+        <span class="accent-title">Cost Division</span>
+        <h2>Dynamic Bill Splitter</h2>
+        <p>Students leave and join during semesters. CampusStay splits bills dynamically based on the exact active headcount in your room for each billing cycle.</p>
+        
+        <div class="splitter-inputs">
+          <div class="input-group">
+            <label>Number of Roommates</label>
+            <div class="roommates-selector">
+              <button class="count-btn active" data-count="1">1</button>
+              <button class="count-btn" data-count="2">2</button>
+              <button class="count-btn active" data-count="3">3</button>
+              <button class="count-btn" data-count="4">4</button>
+            </div>
+          </div>
+
+          <div class="inputs-grid">
+            <div class="input-group">
+              <label>Monthly Room Rent (₹)</label>
+              <input type="number" id="input-rent" value="12000" min="0" step="500">
+            </div>
+            <div class="input-group">
+              <label>Electricity Bill (₹)</label>
+              <input type="number" id="input-electricity" value="1500" min="0" step="100">
+            </div>
+            <div class="input-group">
+              <label>Maid Services (₹)</label>
+              <input type="number" id="input-maid" value="2000" min="0" step="100">
+            </div>
+            <div class="input-group">
+              <label>WiFi Bill (₹)</label>
+              <input type="number" id="input-wifi" value="900" min="0" step="50">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Call To Action -->
+  <section id="download" class="cta-section">
+    <div class="cta-glow"></div>
+    <div class="container cta-container">
+      <h2>Start Your Frictionless Co-Living Journey Today</h2>
+      <p>Download the CampusStay app and matching system on your mobile devices to unlock smart roommate matchmaking and instant rent splitting.</p>
+      
+      <div class="download-stores">
+        <a href="#" class="store-btn">
+          <i class="fa-brands fa-google-play"></i>
+          <div>
+            <span>GET IT ON</span>
+            <strong>Google Play</strong>
+          </div>
+        </a>
+        <a href="#" class="store-btn">
+          <i class="fa-brands fa-apple"></i>
+          <div>
+            <span>Download on the</span>
+            <strong>App Store</strong>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div class="footer-info">
+        <a href="#" class="logo">
+          <i class="fa-solid fa-hotel logo-icon"></i>
+          <span>Campus<span>Stay</span></span>
+        </a>
+        <p>Simplifying student housing and co-living utilities management across India's top college hubs.</p>
+        <div class="socials">
+          <a href="#"><i class="fa-brands fa-twitter"></i></a>
+          <a href="#"><i class="fa-brands fa-instagram"></i></a>
+          <a href="#"><i class="fa-brands fa-github"></i></a>
+        </div>
+      </div>
+      <div class="footer-links">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#matcher">Roommate Matcher</a>
+        <a href="#splitter">Bill Splitter</a>
+      </div>
+      <div class="footer-links">
+        <h4>Legal</h4>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">SLA Agreement</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 CampusStay. Unified database built with Supabase & Razorpay Secure.</p>
+    </div>
+  </footer>
+
+  <!-- Script -->
+  <script src="app.js"></script>
+</body>
+</html>
