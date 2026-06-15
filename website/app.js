@@ -871,26 +871,60 @@ db.auth.onAuthStateChange(async (event, session) => {
   // Handle: new sign-in, page reload with existing session, token refresh
   if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
     const userId = session.user.id;
-    let { data: profile } = await db.from('users').select('*').eq('id', userId).single();
+    let profile = null;
+
+    try {
+      const { data, error } = await db.from('users').select('*').eq('id', userId).single();
+      if (!error && data) {
+        profile = data;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch user profile:", err);
+    }
 
     // If this is a new Google/OAuth user with no profile row yet, auto-create one
     if (!profile && session.user.email) {
       const meta = session.user.user_metadata || {};
       const name = meta.full_name || meta.name || session.user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const username = session.user.email.split('@')[0] + '_' + userId.substring(0, 5);
-      await db.from('users').upsert({
+      
+      try {
+        await db.from('users').upsert({
+          id: userId,
+          name,
+          email: session.user.email,
+          phone: '',
+          role: 'student',
+          trust_score: 85,
+          verified: false,
+          username,
+          profile_pic: meta.avatar_url || meta.picture || ''
+        });
+        const result = await db.from('users').select('*').eq('id', userId).single();
+        if (result && result.data) {
+          profile = result.data;
+        }
+      } catch (err) {
+        console.warn("OAuth profile upsert fallback failed (likely RLS restrictions):", err);
+      }
+    }
+
+    // Fallback: If profile row is still missing/unreadable, construct local state from session metadata
+    if (!profile) {
+      const meta = session.user.user_metadata || {};
+      const name = meta.full_name || meta.name || session.user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      profile = {
         id: userId,
         name,
-        email: session.user.email,
+        email: session.user.email || '',
         phone: '',
         role: 'student',
         trust_score: 85,
         verified: false,
-        username,
-        profile_pic: meta.avatar_url || meta.picture || ''
-      });
-      const result = await db.from('users').select('*').eq('id', userId).single();
-      profile = result.data;
+        profile_pic: meta.avatar_url || meta.picture || 'https://api.dicebear.com/7.x/adventurer/png?seed=' + userId,
+        preferences: { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' }
+      };
+      console.log("Using OAuth session user metadata fallback profile:", profile);
     }
 
     if (profile) {
