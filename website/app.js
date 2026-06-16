@@ -1656,63 +1656,65 @@ async function loadBookingsView(pane) {
   const grandTotalShare = rentSplit + electricitySplit + maidSplit + wifiSplit;
 
   pane.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 24px;">
       <div>
-        <h2>Rent & Utilities Split Dashboard</h2>
+        <h2 style="font-size:22px;">Rent &amp; Utilities Split Dashboard</h2>
         <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Dynamic room bills divided based on real headcount in flat.</p>
-        
-        <div class="glass-card" style="padding: 24px; margin-top: 20px;">
-          <h3 style="font-size: 18px; margin-bottom: 15px;"><i class="fa-solid fa-hotel" style="color: var(--primary);"></i> Flat: ${activeBooking.rooms?.title}</h3>
-          <p style="font-size: 13px; color: var(--text-muted);"><i class="fa-solid fa-map-pin"></i> ${activeBooking.rooms?.detailed_address}</p>
-          
-          <div style="display: flex; gap: 15px; margin-top: 20px;">
-            <div style="flex: 1; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border-glass);">
-              <span style="font-size: 12px; color: var(--text-muted);">Current Active Tenant count</span>
-              <div style="font-size: 24px; font-weight: 700; color: var(--cyan); margin-top: 4px;">${occupantCount} Members</div>
-            </div>
-            <div style="flex: 1; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border-glass);">
-              <span style="font-size: 12px; color: var(--text-muted);">Billing cycle month</span>
-              <div style="font-size: 24px; font-weight: 700; color: var(--green); margin-top: 4px;">${latestBill.billing_month}</div>
-            </div>
+      </div>
+
+      <!-- Room Info Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size: 17px; margin-bottom: 10px;"><i class="fa-solid fa-hotel" style="color: var(--primary); margin-right:8px;"></i>${activeBooking.rooms?.title}</h3>
+        <p style="font-size: 13px; color: var(--text-muted);"><i class="fa-solid fa-map-pin"></i> ${activeBooking.rooms?.detailed_address}</p>
+
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+          <div style="flex: 1; background: #f4f5f7; padding: 16px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.07);">
+            <span style="font-size: 12px; color: var(--text-muted); display:block;">Current Active Tenant count</span>
+            <div style="font-size: 24px; font-weight: 700; color: var(--primary); margin-top: 6px;">${occupantCount} Member${occupantCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div style="flex: 1; background: #f4f5f7; padding: 16px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.07);">
+            <span style="font-size: 12px; color: var(--text-muted); display:block;">Billing cycle month</span>
+            <div style="font-size: 24px; font-weight: 700; color: var(--green); margin-top: 6px;">${latestBill.billing_month}</div>
           </div>
         </div>
       </div>
 
-      <div>
-        <div class="glass-card splitter-card" style="padding: 30px; border-color: var(--primary-glow);">
-          <div class="splitter-header">
-            <h3>Monthly share details</h3>
-            <div class="roommate-counter-badge"><i class="fa-solid fa-receipt"></i> Split: 1/${occupantCount}</div>
-          </div>
-          
-          <div class="splitter-breakdown">
-            <div class="breakdown-row">
-              <span>Rent Share</span>
-              <span class="bold-val">₹${rentSplit.toLocaleString('en-IN')}</span>
-            </div>
-            <div class="breakdown-row">
-              <span>Electricity Split</span>
-              <span class="bold-val">₹${electricitySplit.toLocaleString('en-IN')}</span>
-            </div>
-            <div class="breakdown-row">
-              <span>Maid Split</span>
-              <span class="bold-val">₹${maidSplit.toLocaleString('en-IN')}</span>
-            </div>
-            <div class="breakdown-row">
-              <span>WiFi Split</span>
-              <span class="bold-val">₹${wifiSplit.toLocaleString('en-IN')}</span>
-            </div>
-            <hr class="card-divider">
-            <div class="breakdown-total">
-              <span>Your Total Share</span>
-              <span class="total-val">₹${grandTotalShare.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-          
-          <button class="btn btn-primary pay-simulate-btn" id="pay-split-invoice-btn" style="width: 100%; justify-content: center;">
-            <i class="fa-solid fa-credit-card"></i> Pay Share (₹${grandTotalShare.toLocaleString('en-IN')}) via Razorpay
-          </button>
+      <!-- Split Details Card -->
+      <div class="glass-card" style="padding: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="font-size: 17px;">Monthly Share Details</h3>
+          <span style="font-size: 12px; background: rgba(211,47,47,0.08); color: var(--primary); border: 1px solid rgba(211,47,47,0.2); padding: 4px 12px; border-radius: 20px; font-weight: 700;">
+            <i class="fa-solid fa-receipt"></i> Split: 1/${occupantCount}
+          </span>
         </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+          <div style="padding: 14px 18px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 12px; color: var(--text-muted);">Rent Share</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text-main); margin-top: 4px;">₹${rentSplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="padding: 14px 18px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 12px; color: var(--text-muted);">Electricity Split</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text-main); margin-top: 4px;">₹${electricitySplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="padding: 14px 18px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 12px; color: var(--text-muted);">Maid Split</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text-main); margin-top: 4px;">₹${maidSplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="padding: 14px 18px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <div style="font-size: 12px; color: var(--text-muted);">WiFi Split</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text-main); margin-top: 4px;">₹${wifiSplit.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-top: 1px dashed rgba(0,0,0,0.1); margin-bottom: 20px;">
+          <span style="font-size: 16px; font-weight: 700;">Your Total Share</span>
+          <span style="font-size: 28px; font-weight: 900; color: var(--primary);">₹${grandTotalShare.toLocaleString('en-IN')}</span>
+        </div>
+
+        <button class="btn btn-primary" id="pay-split-invoice-btn" style="width: 100%; justify-content: center; padding: 16px; font-size: 15px;">
+          <i class="fa-solid fa-credit-card"></i> Pay ₹${grandTotalShare.toLocaleString('en-IN')} via Razorpay
+        </button>
       </div>
     </div>
   `;

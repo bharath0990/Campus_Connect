@@ -1296,9 +1296,9 @@ h1, h2, h3, h4 {
   padding: 28px;
   border-radius: 20px;
   min-height: 500px;
-  overflow: hidden; /* prevent inner content from overflowing */
   width: 100%;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 /* Fix all inner view containers to be full-width and not overflow */
@@ -1408,7 +1408,7 @@ h1, h2, h3, h4 {
 .chat-window {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 220px);
+  height: calc(100vh - 240px);
   min-height: 420px;
   max-height: 620px;
   background: #f8f9fa;
@@ -1416,6 +1416,7 @@ h1, h2, h3, h4 {
   border-radius: 16px;
   overflow: hidden;
   width: 100%;
+  box-sizing: border-box;
 }
 
 /* Two-pane chat layout: thread list + messages */
@@ -1424,6 +1425,7 @@ h1, h2, h3, h4 {
   grid-template-columns: 220px 1fr;
   height: 100%;
   overflow: hidden;
+  width: 100%;
 }
 
 .chat-thread-list {
