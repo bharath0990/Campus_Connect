@@ -6,7 +6,9 @@
   "scripts": {
     "test-e2e": "mocha test/campusstay-e2e.js --exit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
   "devDependencies": {
     "chromedriver": "^122.0.0",
     "mocha": "^10.2.0",

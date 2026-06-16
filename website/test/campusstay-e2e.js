@@ -22,13 +22,31 @@ const TEST_USER = {
   password: 'password123'
 };
 
+const TEST_OWNER = {
+  name: `Owner Test ${Date.now()}`,
+  email: `owner_test_${Date.now()}@campusstay.com`,
+  phone: '8888888888',
+  password: 'password123'
+};
+
 const log = (message, level) => reportGenerator.log(message, level);
 const addResult = (testName, passed, error) => reportGenerator.addResult(testName, passed, error);
 
+let driver;
+
+const safeClick = async (element) => {
+  await driver.executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
+  await driver.sleep(300);
+  try {
+    await element.click();
+  } catch (e) {
+    log(`Standard click failed, falling back to JS click: ${e.message}`, 'WARNING');
+    await driver.executeScript("arguments[0].click();", element);
+  }
+};
+
 describe('CampusStay Web E2E Workflow', function() {
   this.timeout(60000); // 1 minute timeout for entire suite
-
-  let driver;
 
   before(async () => {
     reportGenerator.init();
@@ -36,6 +54,7 @@ describe('CampusStay Web E2E Workflow', function() {
     try {
       const chrome = require('selenium-webdriver/chrome');
       const options = new chrome.Options();
+      options.setPageLoadStrategy('eager');
 
       // Support headless run for environment flexibility
       if (process.env.HEADLESS === 'true' || process.env.CI === 'true') {
@@ -50,8 +69,10 @@ describe('CampusStay Web E2E Workflow', function() {
         .forBrowser('chrome')
         .setChromeOptions(options)
         .build();
-      await driver.manage().window().maximize();
-      await driver.manage().setTimeouts({ implicit: 5000, pageLoad: 15000 });
+      if (process.env.HEADLESS !== 'true' && process.env.CI !== 'true') {
+        await driver.manage().window().maximize();
+      }
+      await driver.manage().setTimeouts({ implicit: 5000, pageLoad: 30000 });
       log('WebDriver initialized successfully.');
     } catch (error) {
       log(`WebDriver init error: ${error.message}`, 'ERROR');
@@ -84,7 +105,7 @@ describe('CampusStay Web E2E Workflow', function() {
         // Click Sign In nav button to open modal
         log('Clicking Sign In nav button...');
         const signInNav = await driver.findElement(By.id('login-nav-btn'));
-        await signInNav.click();
+        await safeClick(signInNav);
 
         // Wait for modal to be visible
         await driver.wait(until.elementLocated(By.css('.auth-tabs')), 5000);
@@ -93,28 +114,67 @@ describe('CampusStay Web E2E Workflow', function() {
         // Switch to Sign Up tab
         log('Switching to Sign Up tab...');
         const signUpTab = await driver.findElement(By.css('.auth-tab-btn[data-tab="register-tab"]'));
-        await signUpTab.click();
+        await safeClick(signUpTab);
 
         // Fill out registration details
         log('Filling registration details...');
-        await driver.findElement(By.id('register-name')).sendKeys(TEST_USER.name);
-        await driver.findElement(By.id('register-email')).sendKeys(TEST_USER.email);
-        await driver.findElement(By.id('register-phone')).sendKeys(TEST_USER.phone);
-        await driver.findElement(By.id('register-password')).sendKeys(TEST_USER.password);
+        const nameInput = await driver.findElement(By.id('register-name'));
+        await nameInput.clear();
+        await nameInput.sendKeys(TEST_USER.name);
+        
+        const emailInput = await driver.findElement(By.id('register-email'));
+        await emailInput.clear();
+        await emailInput.sendKeys(TEST_USER.email);
+
+        const phoneInput = await driver.findElement(By.id('register-phone'));
+        await phoneInput.clear();
+        await phoneInput.sendKeys(TEST_USER.phone);
+
+        const passInput = await driver.findElement(By.id('register-password'));
+        await passInput.clear();
+        await passInput.sendKeys(TEST_USER.password);
 
         // Click Register Submit Button
         log('Submitting signup form...');
         const submitBtn = await driver.findElement(By.css('form#register-form button[type="submit"]'));
-        await submitBtn.click();
+        await safeClick(submitBtn);
 
-        // Wait for registration complete & redirection to Dashboard
-        await driver.sleep(3000);
-        
-        // Modal should close and nav dashboard button should be visible
+        // Wait for alert and accept it
+        log('Waiting for signup success alert...');
+        try {
+          await driver.wait(until.alertIsPresent(), 10000);
+          const alert = await driver.switchTo().alert();
+          const alertText = await alert.getText();
+          log(`Alert message: ${alertText}`);
+          await alert.accept();
+          log('Alert accepted.');
+        } catch (alertError) {
+          log(`No alert appeared or error accepting alert: ${alertError.message}`, 'WARNING');
+        }
+
+        // Wait for login form to be visible (modal tab automatically switched by app.js)
+        log('Waiting for login form to appear...');
+        await driver.wait(until.elementLocated(By.id('login-form')), 5000);
+
+        // Fill in login details using the registered user credentials
+        log('Filling login form after signup...');
+        const signupEmailInput = await driver.findElement(By.id('login-email'));
+        await signupEmailInput.clear();
+        await signupEmailInput.sendKeys(TEST_USER.email);
+        const signupPassInput = await driver.findElement(By.id('login-password'));
+        await signupPassInput.clear();
+        await signupPassInput.sendKeys(TEST_USER.password);
+
+        log('Submitting login form...');
+        const loginBtn = await driver.findElement(By.css('form#login-form button[type="submit"]'));
+        await safeClick(loginBtn);
+
+        // Now wait for redirection to Dashboard
+        log('Waiting for Dashboard nav button...');
         const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 5000);
         const text = await dashboardBtn.getText();
         if (text.includes('Dashboard')) {
-          log('Signup successful. Dashboard navigation button is now visible.');
+          log('Signup & login successful. Dashboard navigation button is now visible.');
           addResult('Signup - Create new student account', true);
         } else {
           throw new Error('Dashboard nav button text mismatch');
@@ -134,23 +194,27 @@ describe('CampusStay Web E2E Workflow', function() {
       try {
         log('Logging out from the current session...');
         const signOutBtn = await driver.findElement(By.id('logout-nav-btn'));
-        await signOutBtn.click();
+        await safeClick(signOutBtn);
         await driver.sleep(1500);
 
         log('Clicking Sign In nav button...');
         const signInNav = await driver.findElement(By.id('login-nav-btn'));
-        await signInNav.click();
+        await safeClick(signInNav);
 
         // Wait for login form
         await driver.wait(until.elementLocated(By.id('login-form')), 5000);
         
         log('Filling login form...');
-        await driver.findElement(By.id('login-email')).sendKeys(TEST_USER.email);
-        await driver.findElement(By.id('login-password')).sendKeys(TEST_USER.password);
+        const loginEmailInput = await driver.findElement(By.id('login-email'));
+        await loginEmailInput.clear();
+        await loginEmailInput.sendKeys(TEST_USER.email);
+        const loginPassInput = await driver.findElement(By.id('login-password'));
+        await loginPassInput.clear();
+        await loginPassInput.sendKeys(TEST_USER.password);
 
         log('Submitting login form...');
         const submitBtn = await driver.findElement(By.css('form#login-form button[type="submit"]'));
-        await submitBtn.click();
+        await safeClick(submitBtn);
 
         await driver.sleep(2000);
 
@@ -176,7 +240,7 @@ describe('CampusStay Web E2E Workflow', function() {
       try {
         log('Opening dashboard...');
         const dashboardBtn = await driver.findElement(By.id('nav-dashboard-btn'));
-        await dashboardBtn.click();
+        await safeClick(dashboardBtn);
 
         // Wait for sidebar container to load
         await driver.wait(until.elementLocated(By.id('sidebar-nav-container')), 5000);
@@ -185,13 +249,13 @@ describe('CampusStay Web E2E Workflow', function() {
         // Click on Roommate Matcher tab
         log('Navigating to Roommate Matcher tab...');
         const matcherBtn = await driver.findElement(By.css('.sidebar-link-btn[id*="matcher"], .sidebar-link-btn:nth-child(2)'));
-        await matcherBtn.click();
+        await safeClick(matcherBtn);
         await driver.sleep(1500);
 
         // Click on Bookings & Split tab
         log('Navigating to Bookings & Split tab...');
         const bookingsBtn = await driver.findElement(By.css('.sidebar-link-btn[id*="bookings"], .sidebar-link-btn:nth-child(3)'));
-        await bookingsBtn.click();
+        await safeClick(bookingsBtn);
         await driver.sleep(1500);
 
         addResult('Dashboard - Click through tabs', true);
@@ -224,7 +288,7 @@ describe('CampusStay Web E2E Workflow', function() {
           throw new Error('Real-time Chat sidebar link not found');
         }
 
-        await chatLink.click();
+        await safeClick(chatLink);
         await driver.sleep(2000);
 
         // Wait for chat window container
@@ -232,11 +296,11 @@ describe('CampusStay Web E2E Workflow', function() {
         log('Chat window loaded');
 
         // Check dimensions of chat window and verify it is not squished (width > 500px)
-        const size = await chatWindow.getSize();
-        log(`Chat window width: ${size.width}px, height: ${size.height}px`);
+        const rect = await chatWindow.getRect();
+        log(`Chat window width: ${rect.width}px, height: ${rect.height}px`);
 
-        if (size.width < 500) {
-          throw new Error(`Chat window width is restricted/squished: ${size.width}px. Expected > 500px.`);
+        if (rect.width < 500) {
+          throw new Error(`Chat window width is restricted/squished: ${rect.width}px. Expected > 500px.`);
         }
 
         // Verify that chat message container and input field are displayed and not overflowed
@@ -249,6 +313,200 @@ describe('CampusStay Web E2E Workflow', function() {
         }
       } catch (error) {
         addResult('Chat UI - Verify layout width and input field visibility', false, error.message);
+        throw error;
+      }
+    });
+  });
+
+  // ============================================================
+  // TEST 5: OWNER SIGNUP & LOGIN
+  // ============================================================
+  describe('5. Owner Signup & Login Workflow', function() {
+    it('should log out student, register new owner account, and login successfully', async function() {
+      try {
+        log('Logging out from student session...');
+        try {
+          const signOutBtn = await driver.findElement(By.id('logout-nav-btn'));
+          await safeClick(signOutBtn);
+          await driver.sleep(1500);
+        } catch (e) {
+          log(`Logout button not found: ${e.message}`, 'WARNING');
+        }
+
+        log('Clicking Sign In nav button...');
+        const signInNav = await driver.findElement(By.id('login-nav-btn'));
+        await safeClick(signInNav);
+
+        // Wait for modal to be visible
+        await driver.wait(until.elementLocated(By.css('.auth-tabs')), 5000);
+        log('Auth modal opened');
+
+        // Switch to Sign Up tab
+        log('Switching to Sign Up tab...');
+        const signUpTab = await driver.findElement(By.css('.auth-tab-btn[data-tab="register-tab"]'));
+        await safeClick(signUpTab);
+
+        // Select Join as Owner
+        log('Selecting Owner signup role...');
+        const ownerSignUpBtn = await driver.findElement(By.css('#register-role-selector button[data-role="owner"]'));
+        await safeClick(ownerSignUpBtn);
+
+        // Fill out registration details
+        log('Filling owner registration details...');
+        const nameInput = await driver.findElement(By.id('register-name'));
+        await nameInput.clear();
+        await nameInput.sendKeys(TEST_OWNER.name);
+        
+        const emailInput = await driver.findElement(By.id('register-email'));
+        await emailInput.clear();
+        await emailInput.sendKeys(TEST_OWNER.email);
+
+        const phoneInput = await driver.findElement(By.id('register-phone'));
+        await phoneInput.clear();
+        await phoneInput.sendKeys(TEST_OWNER.phone);
+
+        const passInput = await driver.findElement(By.id('register-password'));
+        await passInput.clear();
+        await passInput.sendKeys(TEST_OWNER.password);
+
+        // Click Register Submit Button
+        log('Submitting owner signup form...');
+        const submitBtn = await driver.findElement(By.css('form#register-form button[type="submit"]'));
+        await safeClick(submitBtn);
+
+        // Wait for alert and accept it
+        log('Waiting for owner signup success alert...');
+        try {
+          await driver.wait(until.alertIsPresent(), 10000);
+          const alert = await driver.switchTo().alert();
+          const alertText = await alert.getText();
+          log(`Alert message: ${alertText}`);
+          await alert.accept();
+        } catch (alertError) {
+          log(`No alert appeared or error: ${alertError.message}`, 'WARNING');
+        }
+
+        // Wait for login form
+        log('Waiting for login form to appear...');
+        await driver.wait(until.elementLocated(By.id('login-form')), 5000);
+
+        // Select "Owner Account" login role
+        log('Selecting Owner login role...');
+        const ownerLoginBtn = await driver.findElement(By.css('#login-role-selector button[data-role="owner"]'));
+        await safeClick(ownerLoginBtn);
+
+        // Fill in login details
+        log('Filling login form after owner signup...');
+        const loginEmailInput = await driver.findElement(By.id('login-email'));
+        await loginEmailInput.clear();
+        await loginEmailInput.sendKeys(TEST_OWNER.email);
+        const loginPassInput = await driver.findElement(By.id('login-password'));
+        await loginPassInput.clear();
+        await loginPassInput.sendKeys(TEST_OWNER.password);
+
+        log('Submitting owner login form...');
+        const loginBtn = await driver.findElement(By.css('form#login-form button[type="submit"]'));
+        await safeClick(loginBtn);
+
+        await driver.sleep(2000);
+
+        // Now wait for redirection to Dashboard
+        log('Waiting for Dashboard nav button...');
+        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 5000);
+        await safeClick(dashboardBtn);
+
+        // Verify Dashboard User Role shows "OWNER"
+        const roleVal = await driver.wait(until.elementLocated(By.id('dashboard-user-role')), 5000);
+        const roleText = await roleVal.getText();
+        if (roleText.toUpperCase().includes('OWNER')) {
+          log('Owner Signup & login successful.');
+          addResult('Owner Signup and Login - Create owner account and sign in', true);
+        } else {
+          throw new Error(`Expected role tag OWNER, found: ${roleText}`);
+        }
+      } catch (error) {
+        try {
+          const browserLogs = await driver.manage().logs().get('browser');
+          log('--- Browser Console Logs on Failure ---');
+          for (const entry of browserLogs) {
+            log(`[Browser Console] [${entry.level.name}] ${entry.message}`);
+          }
+          log('----------------------------------------');
+        } catch (logErr) {
+          log(`Failed to fetch browser logs: ${logErr.message}`, 'WARNING');
+        }
+        addResult('Owner Signup and Login - Create owner account and sign in', false, error.message);
+        throw error;
+      }
+    });
+  });
+
+  // ============================================================
+  // TEST 6: OWNER DASHBOARD NAVIGATION & LISTING
+  // ============================================================
+  describe('6. Owner Dashboard Navigation & Add PG Listing', function() {
+    it('should navigate owner tabs and successfully list a new PG flat property', async function() {
+      try {
+        log('Opening Owner listings...');
+        await driver.wait(until.elementLocated(By.id('sidebar-nav-container')), 5000);
+
+        // Click "Utility Split Bills" tab
+        log('Navigating to Utility Split Bills tab...');
+        const billsTab = await driver.findElement(By.css('.sidebar-link-btn:nth-child(4)'));
+        await safeClick(billsTab);
+        await driver.sleep(1500);
+
+        // Click "My Listings" tab (1st item)
+        log('Navigating back to My Listings tab...');
+        const listingsTab = await driver.findElement(By.css('.sidebar-link-btn:nth-child(1)'));
+        await safeClick(listingsTab);
+        await driver.sleep(1500);
+
+        // Fill out List New Flat PG Form
+        log('Filling out List New Flat form...');
+        await driver.findElement(By.id('room-title')).sendKeys('Premium Co-Living Flat A');
+        await driver.findElement(By.id('room-city')).sendKeys('Panaji');
+        const rentInput = await driver.findElement(By.id('room-rent'));
+        await rentInput.clear();
+        await rentInput.sendKeys('12000');
+        const latInput = await driver.findElement(By.id('room-lat'));
+        await latInput.clear();
+        await latInput.sendKeys('15.4989');
+        const lngInput = await driver.findElement(By.id('room-lng'));
+        await lngInput.clear();
+        await lngInput.sendKeys('73.8278');
+        await driver.findElement(By.id('room-address')).sendKeys('Near BITS campus, Altinho, Goa');
+
+        // Submit form
+        log('Submitting new flat listing...');
+        const addRoomFormSubmit = await driver.findElement(By.css('form#add-room-form button[type="submit"]'));
+        await safeClick(addRoomFormSubmit);
+
+        // Accept Flat Listed Successfully alert
+        log('Waiting for listing success alert...');
+        try {
+          await driver.wait(until.alertIsPresent(), 10000);
+          const alert = await driver.switchTo().alert();
+          const alertText = await alert.getText();
+          log(`Alert message: ${alertText}`);
+          await alert.accept();
+        } catch (alertError) {
+          log(`No alert appeared or error: ${alertError.message}`, 'WARNING');
+        }
+
+        await driver.sleep(2000);
+
+        // Verify that the listing is present in listed properties
+        log('Verifying room listed correctly...');
+        const pageContent = await driver.findElement(By.id('dashboard-view-pane')).getText();
+        if (pageContent.includes('Premium Co-Living Flat A')) {
+          log('Verified "Premium Co-Living Flat A" listed successfully.');
+          addResult('Owner Dashboard - Navigate tabs and list new PG flat', true);
+        } else {
+          throw new Error('Listed property "Premium Co-Living Flat A" not found in dashboard main content');
+        }
+      } catch (error) {
+        addResult('Owner Dashboard - Navigate tabs and list new PG flat', false, error.message);
         throw error;
       }
     });

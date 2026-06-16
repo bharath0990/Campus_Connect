@@ -1561,7 +1561,7 @@ h1, h2, h3, h4 {
 /* -----------------------------------------
    RESPONSIVENESS ADDITIONS
 ----------------------------------------- */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   .dashboard-grid-layout {
     grid-template-columns: 1fr;
   }

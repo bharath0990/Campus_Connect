@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 
 class ReportGenerator {
   constructor() {
@@ -23,11 +24,17 @@ class ReportGenerator {
   }
 
   addResult(testName, passed, error = null) {
+    const timestamp = new Date();
+    const durationSeconds = this.results.length === 0 
+      ? ((timestamp - this.startTime) / 1000).toFixed(2)
+      : ((timestamp - new Date(this.results[this.results.length - 1].timestamp)) / 1000).toFixed(2);
+
     this.results.push({
       testName,
       passed,
       error: error || null,
-      timestamp: new Date().toISOString()
+      timestamp: timestamp.toISOString(),
+      durationSeconds: parseFloat(durationSeconds)
     });
     this.log(`Result: ${testName} -> ${passed ? 'PASSED' : 'FAILED'}${error ? ` (Error: ${error})` : ''}`, passed ? 'PASS' : 'FAIL');
   }
@@ -63,6 +70,71 @@ class ReportGenerator {
       path.join(reportDir, 'test-logs.log'),
       this.logs.join('\n')
     );
+
+    // Save report as Excel file (xlsx)
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      const summaryData = [
+        ["CampusStay E2E Test Suite Execution Report"],
+        [],
+        ["Metric", "Value"],
+        ["Total Test Cases", total],
+        ["Passed Cases", passed],
+        ["Failed Cases", failed],
+        ["Success Rate", `${((passed / total) * 100).toFixed(1)}%`],
+        ["Duration (Seconds)", parseFloat(duration)],
+        ["Execution Date", endTime.toLocaleString()]
+      ];
+      
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Execution Summary");
+      
+      const detailHeaders = ["Test ID", "Category", "Test Case Name", "Status", "Duration (Seconds)", "Error / Details"];
+      const detailRows = this.results.map((r, index) => {
+        let category = "General";
+        const name = r.testName.toLowerCase();
+        if (name.includes("signup") || name.includes("register")) {
+          category = name.includes("owner") ? "Owner Auth" : "Student Auth";
+        } else if (name.includes("login") || name.includes("sign in")) {
+          category = name.includes("owner") ? "Owner Auth" : "Student Auth";
+        } else if (name.includes("dashboard") || name.includes("tabs")) {
+          category = name.includes("owner") ? "Owner Portal" : "Student Portal";
+        } else if (name.includes("chat")) {
+          category = name.includes("owner") ? "Owner Portal" : "Student Portal";
+        } else if (name.includes("listing") || name.includes("pg")) {
+          category = "Owner Portal";
+        }
+        
+        return [
+          index + 1,
+          category,
+          r.testName,
+          r.passed ? "PASSED" : "FAILED",
+          r.durationSeconds || 0.00,
+          r.error || "Execution completed successfully."
+        ];
+      });
+      
+      const wsDetails = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+      
+      wsDetails['!cols'] = [
+        { wch: 10 }, // Test ID
+        { wch: 15 }, // Category
+        { wch: 45 }, // Test Case Name
+        { wch: 12 }, // Status
+        { wch: 18 }, // Duration
+        { wch: 50 }  // Error / Details
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, wsDetails, "Detailed Results");
+      
+      const excelPath = path.join(reportDir, 'test-report.xlsx');
+      XLSX.writeFile(wb, excelPath);
+      this.log(`Excel Report generated: ${excelPath}`);
+    } catch (excelErr) {
+      this.log(`Failed to generate Excel report: ${excelErr.message}`, 'ERROR');
+    }
 
     // Build premium, responsive HTML report styled with CampusStay identity
     const htmlContent = `

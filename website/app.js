@@ -350,7 +350,13 @@ const supabaseLib = window.supabase || (typeof supabase !== 'undefined' ? supaba
 
 if (supabaseLib && SUPABASE_URL && SUPABASE_ANON_KEY) {
   try {
-    db = supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    db = supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: window.sessionStorage,
+        autoRefreshToken: true,
+        persistSession: true
+      }
+    });
     console.log('✅ Connected to real Supabase backend');
   } catch (err) {
     console.warn('⚠️ Supabase init failed, using local simulator:', err);
@@ -893,8 +899,7 @@ async function handleGoogleSignIn() {
 
   try {
     if (db.auth.signInWithOAuth) {
-      // Use fixed production URL — must match Supabase allowed redirect URLs
-      const redirectTo = 'https://campusconnectionsite.vercel.app';
+      const redirectTo = window.location.origin;
 
       const { data, error } = await db.auth.signInWithOAuth({
         provider: 'google',
@@ -996,7 +1001,7 @@ if (magicLinkBtn) {
     try {
       const { error } = await db.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: 'https://campusconnectionsite.vercel.app' }
+        options: { emailRedirectTo: window.location.origin }
       });
       magicLinkBtn.disabled = false;
       magicLinkBtn.innerHTML = '<i class="fa-solid fa-envelope-open-text" style="color:#7c83fd;margin-right:8px;"></i> Send Magic Link (Passwordless)';
@@ -1027,7 +1032,7 @@ if (forgotPasswordLink) {
     }
     try {
       const { error } = await db.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://campusconnectionsite.vercel.app'
+        redirectTo: window.location.origin
       });
       if (error) {
         alert('Password reset error: ' + error.message);
@@ -1052,11 +1057,24 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 5000);
 }
 
-// Session checker on startup — handles email login, Google OAuth, and page reload sessions
 db.auth.onAuthStateChange(async (event, session) => {
+  // Clear hash fragment from URL if it contains auth tokens to prevent loop triggers
+  if (window.location.hash && (window.location.hash.includes('access_token=') || window.location.hash.includes('error='))) {
+    try {
+      window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    } catch (e) {
+      console.warn("Failed to clear URL hash:", e);
+    }
+  }
   // Handle: new sign-in, page reload with existing session, token refresh
   if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
     const userId = session.user.id;
+
+    // Prevent auto-refreshing dashboard and resetting user tab view when browser tab is focused and token is refreshed
+    if (currentUserProfile && currentUserProfile.id === userId) {
+      console.log('Session already active, skipping redundant UI render');
+      return;
+    }
     let profile = null;
 
     try {
@@ -2127,45 +2145,49 @@ async function loadChatView(pane) {
   // Filter chats participant list
   const userChats = chats.filter(chat => chat.participants.includes(currentUserProfile.id));
 
-  // If no chats exist
-  if (userChats.length === 0) {
-    pane.innerHTML = `
-      <div style="text-align: center; padding: 40px;">
-        <i class="fa-solid fa-comments fa-3x" style="color: var(--text-muted); margin-bottom: 20px;"></i>
-        <h3>No Active Chats</h3>
-        <p style="color: var(--text-muted); margin-top: 8px;">Start a chat with roommates or property owners from flat details page.</p>
-      </div>
-    `;
-    return;
-  }
-
   // Select first chat if activeChatRoomId is not set
   if (!activeChatRoomId && userChats.length > 0) {
     activeChatRoomId = userChats[0].id;
   }
 
+  const hasChats = userChats.length > 0;
+
   pane.innerHTML = `
     <div class="chat-window">
       <div class="chat-pane-wrapper">
         <!-- Thread Sidebar -->
-        <div class="chat-thread-list" id="chat-thread-container"></div>
+        <div class="chat-thread-list" id="chat-thread-container">
+          ${!hasChats ? `
+            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+              <i class="fa-solid fa-comments fa-2x" style="margin-bottom: 10px; opacity: 0.5;"></i>
+              <p style="font-size: 12px;">No active conversations.</p>
+            </div>
+          ` : ''}
+        </div>
 
         <!-- Message Panel -->
         <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
           <div id="chat-header-pane" style="padding: 13px 18px; border-bottom: 1px solid rgba(0,0,0,0.08); font-weight: 700; font-size: 15px; background: #fff; flex-shrink: 0;">
-            Select a conversation
+            ${hasChats ? 'Select a conversation' : 'No active conversation'}
           </div>
-          <div class="chat-messages-container" id="chat-messages-scroll">
-            <!-- Messages rendered dynamically -->
+          <div class="chat-messages-container" id="chat-messages-scroll" style="${!hasChats ? 'display: flex; align-items: center; justify-content: center; background: #fafafa; color: var(--text-muted); flex-grow: 1;' : ''}">
+            ${!hasChats ? `
+              <div style="text-align: center; padding: 20px;">
+                <i class="fa-solid fa-comments fa-3x" style="margin-bottom: 15px; opacity: 0.3;"></i>
+                <p>Start a chat with roommates or property owners from flat details page.</p>
+              </div>
+            ` : '<!-- Messages rendered dynamically -->'}
           </div>
           <form class="chat-input-row" id="chat-input-form" style="flex-shrink: 0;">
-            <input type="text" id="chat-msg-text" placeholder="Type a message..." required autocomplete="off">
-            <button type="submit" class="btn btn-primary" style="padding: 12px 20px; margin: 0; flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
+            <input type="text" id="chat-msg-text" placeholder="${hasChats ? 'Type a message...' : 'Start a chat from flat details...'}" ${!hasChats ? 'disabled' : ''} required autocomplete="off">
+            <button type="submit" class="btn btn-primary" ${!hasChats ? 'disabled' : ''} style="padding: 12px 20px; margin: 0; flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
           </form>
         </div>
       </div>
     </div>
   `;
+
+  if (!hasChats) return;
 
   // Render chat thread links sidebar
   const threadContainer = document.getElementById('chat-thread-container');
