@@ -253,6 +253,7 @@ class MaintenanceTicket {
   final List<String> photos;
   final DateTime createdAt;
   final DateTime? resolvedAt;
+  final String? resolutionNotes;
 
   MaintenanceTicket({
     required this.id,
@@ -265,6 +266,7 @@ class MaintenanceTicket {
     required this.photos,
     required this.createdAt,
     this.resolvedAt,
+    this.resolutionNotes,
   });
 
   factory MaintenanceTicket.fromMap(Map<String, dynamic> data, String id) {
@@ -279,6 +281,7 @@ class MaintenanceTicket {
       photos: List<String>.from(data['photos'] ?? []),
       createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
       resolvedAt: data['resolved_at'] != null ? DateTime.parse(data['resolved_at']) : null,
+      resolutionNotes: data['resolution_notes'],
     );
   }
 
@@ -293,6 +296,7 @@ class MaintenanceTicket {
       'photos': photos,
       'created_at': createdAt.toIso8601String(),
       'resolved_at': resolvedAt?.toIso8601String(),
+      'resolution_notes': resolutionNotes,
     };
   }
 }
@@ -305,6 +309,7 @@ class ChatMessage {
   final String text;
   final DateTime createdAt;
   final String? imageUrl;
+  final bool isRead;
 
   ChatMessage({
     required this.id,
@@ -313,6 +318,7 @@ class ChatMessage {
     required this.text,
     required this.createdAt,
     this.imageUrl,
+    this.isRead = false,
   });
 
   factory ChatMessage.fromMap(Map<String, dynamic> data, String id) {
@@ -323,6 +329,7 @@ class ChatMessage {
       text: data['text'] ?? '',
       createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
       imageUrl: data['image_url'],
+      isRead: data['is_read'] ?? false,
     );
   }
 
@@ -333,6 +340,7 @@ class ChatMessage {
       'text': text,
       'created_at': createdAt.toIso8601String(),
       if (imageUrl != null) 'image_url': imageUrl,
+      'is_read': isRead,
     };
   }
 }

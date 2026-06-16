@@ -44,6 +44,14 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka',
     'https://api.dicebear.com/7.x/avataaars/png?seed=Milo',
     'https://api.dicebear.com/7.x/avataaars/png?seed=Sophia',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Jack',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Lily',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Leo',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Maya',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Oliver',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Zoe',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Max',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Luna',
   ];
 
   StreamSubscription<List<Map<String, dynamic>>>? _notificationsSubscription;
@@ -773,6 +781,36 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       final wifi = int.tryParse(wifiController.text.trim()) ?? 0;
                       final month = monthController.text.trim();
 
+                      // Prevent duplicate entries for the same month
+                      final existing = await Supabase.instance.client
+                          .from('room_bills')
+                          .select('id')
+                          .eq('room_id', room.id)
+                          .eq('billing_month', month)
+                          .maybeSingle();
+
+                      if (existing != null) {
+                        setStateDialog(() {
+                          isSaving = false;
+                        });
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Duplicate Bill Entry'),
+                              content: Text('Bills for "$month" have already been added for this room. You can only add bills once per calendar month.'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
                       await db.addRoomBills(room.id, elect, maid, wifi, month);
                       
                       // Notify roommates about the new bill
@@ -835,6 +873,80 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return 'June';
   }
 
+  void _showResolveTicketDialog(BuildContext context, SupabaseService db, MaintenanceTicket ticket) {
+    final notesController = TextEditingController();
+    bool isSaving = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Resolve Complaint'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Issue: ${ticket.issue}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  const Text('Write issue cleared or any report/notes after clearing (sent to all roommates):', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. Plumber visited and fixed the leak. Pipe replaced.',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving ? null : () async {
+                    if (notesController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter resolution notes.')),
+                      );
+                      return;
+                    }
+                    setStateDialog(() {
+                      isSaving = true;
+                    });
+                    try {
+                      await db.updateTicketStatus(ticket.id, 'Resolved', resolutionNotes: notesController.text.trim());
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ticket resolved successfully! Roommates notified.')),
+                        );
+                      }
+                    } catch (e) {
+                      setStateDialog(() {
+                        isSaving = false;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error resolving ticket: $e')),
+                      );
+                    }
+                  },
+                  child: isSaving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Resolve'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildListingsTab(SupabaseService db) {
     return StreamBuilder<List<Room>>(
       stream: db.streamOwnerRooms(widget.userId),
@@ -895,108 +1007,93 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       return Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: room.images.isEmpty
-                                     ? Container(color: Colors.grey.shade100, width: 80, height: 80, child: const Icon(Icons.image))
-                                     : _buildRoomImage(room.images.first, width: 80, height: 80, fit: BoxFit.cover),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(room.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                    const SizedBox(height: 4),
-                                    Text('₹${room.rent}/mo • ${room.city}', style: TextStyle(color: Theme.of(context).primaryColor)),
-                                    const SizedBox(height: 4),
-                                    Text('Capacity: ${room.capacity} roommates', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 2),
-                                    Text('Status: ${room.available ? (room.verified ? 'Listed (Active)' : 'Pending Approval') : 'Draft'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                    if (room.latitude != null && room.longitude != null) ...[
-                                      const SizedBox(height: 2),
-                                      Text('GPS: (${room.latitude!.toStringAsFixed(4)}, ${room.longitude!.toStringAsFixed(4)})', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                    ],
-                                    if (deletionStatus != null) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: deletionStatus == 'pending'
-                                              ? Colors.orange.withOpacity(0.1)
-                                              : deletionStatus == 'approved'
-                                                  ? Colors.green.withOpacity(0.1)
-                                                  : Colors.red.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(
-                                            color: deletionStatus == 'pending'
-                                                ? Colors.orange
-                                                : deletionStatus == 'approved'
-                                                    ? Colors.green
-                                                    : Colors.red,
-                                            width: 0.5,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Deletion: ${deletionStatus.toUpperCase()}${adminNote != null && adminNote.isNotEmpty ? " ($adminNote)" : ""}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: deletionStatus == 'pending'
-                                                ? Colors.orange.shade800
-                                                : deletionStatus == 'approved'
-                                                    ? Colors.green.shade800
-                                                    : Colors.red.shade800,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.receipt_long_rounded, color: Colors.green),
-                                    tooltip: 'Manage Bills',
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: room.images.isEmpty
+                                         ? Container(color: Colors.grey.shade100, width: 80, height: 80, child: const Icon(Icons.image))
+                                         : _buildRoomImage(room.images.first, width: 80, height: 80, fit: BoxFit.cover),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(room.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        const SizedBox(height: 6),
+                                        Text('₹${room.rent}/mo • ${room.city}', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 4),
+                                        Text('Capacity: ${room.capacity} roommates', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 2),
+                                        Text('Status: ${room.available ? (room.verified ? 'Listed (Active)' : 'Pending Approval') : 'Draft'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                        if (room.latitude != null && room.longitude != null) ...[
+                                          const SizedBox(height: 2),
+                                          Text('GPS: (${room.latitude!.toStringAsFixed(4)}, ${room.longitude!.toStringAsFixed(4)})', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                        ],
+                                        if (deletionStatus != null) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: deletionStatus == 'pending'
+                                                  ? Colors.orange.withOpacity(0.1)
+                                                  : deletionStatus == 'approved'
+                                                      ? Colors.green.withOpacity(0.1)
+                                                      : Colors.red.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: deletionStatus == 'pending'
+                                                    ? Colors.orange
+                                                    : deletionStatus == 'approved'
+                                                        ? Colors.green
+                                                        : Colors.red,
+                                                width: 0.5,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Deletion: ${deletionStatus.toUpperCase()}${adminNote != null && adminNote.isNotEmpty ? " ($adminNote)" : ""}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: deletionStatus == 'pending'
+                                                    ? Colors.orange.shade800
+                                                    : deletionStatus == 'approved'
+                                                        ? Colors.green.shade800
+                                                        : Colors.red.shade800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 24, thickness: 1, color: Color(0xFFEEEEEE)),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.receipt_long_rounded, color: Colors.green, size: 20),
+                                    label: const Text('Bills', style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
                                     onPressed: () => _showManageBillsDialog(context, db, room),
                                   ),
-                                  const Text('Bills', style: TextStyle(fontSize: 10, color: Colors.green)),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.analytics_outlined, color: Colors.blueAccent),
-                                    tooltip: 'Analyze Pricing',
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.analytics_outlined, color: Colors.blueAccent, size: 20),
+                                    label: const Text('Analyze', style: TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.bold)),
                                     onPressed: () => _analyzeRoomPricing(context, db, room),
                                   ),
-                                  const Text('Analyze', style: TextStyle(fontSize: 10, color: Colors.blueAccent)),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_note_rounded, color: Colors.orangeAccent),
-                                    tooltip: 'Edit Room',
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.edit_note_rounded, color: Colors.orangeAccent, size: 20),
+                                    label: const Text('Edit', style: TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold)),
                                     onPressed: () => _showEditRoomDialog(context, db, room),
                                   ),
-                                  const Text('Edit', style: TextStyle(fontSize: 10, color: Colors.orangeAccent)),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  IconButton(
+                                  TextButton.icon(
                                     icon: Icon(
                                       deletionStatus == 'pending'
                                           ? Icons.hourglass_empty_rounded
@@ -1006,28 +1103,27 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                           : deletionStatus == 'rejected'
                                               ? Colors.red
                                               : Colors.redAccent,
+                                      size: 20,
                                     ),
-                                    tooltip: deletionStatus == 'pending'
-                                        ? 'Deletion Pending'
-                                        : 'Request Deletion',
+                                    label: Text(
+                                      deletionStatus == 'pending'
+                                          ? 'Pending'
+                                          : deletionStatus == 'rejected'
+                                              ? 'Rejected'
+                                              : 'Delete',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: deletionStatus == 'pending'
+                                            ? Colors.orange
+                                            : deletionStatus == 'rejected'
+                                                ? Colors.red
+                                                : Colors.redAccent,
+                                      ),
+                                    ),
                                     onPressed: deletionStatus == 'pending'
                                         ? null
                                         : () => _showRequestDeletionDialog(context, db, room),
-                                  ),
-                                  Text(
-                                    deletionStatus == 'pending'
-                                        ? 'Pending'
-                                        : deletionStatus == 'rejected'
-                                            ? 'Rejected'
-                                            : 'Delete',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: deletionStatus == 'pending'
-                                          ? Colors.orange
-                                          : deletionStatus == 'rejected'
-                                              ? Colors.red
-                                              : Colors.redAccent,
-                                    ),
                                   ),
                                 ],
                               ),
@@ -1167,7 +1263,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 trailing: (t.status == 'Open') 
                     ? IconButton(
                         icon: const Icon(Icons.check_circle_outline, color: Colors.greenAccent),
-                        onPressed: () => db.updateTicketStatus(t.id, 'Resolved'),
+                        onPressed: () => _showResolveTicketDialog(context, db, t),
                       )
                     : const Icon(Icons.check_circle, color: Colors.green),
               ),

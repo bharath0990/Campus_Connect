@@ -19,21 +19,32 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
 
   // Added search and friending state
   Set<String> _friendIds = {};
+  Set<String> _sentRequestIds = {};
+  Set<String> _receivedRequestIds = {};
   List<CSUser> _friendsList = [];
+  List<CSUser> _receivedRequestsList = [];
   bool _loadingFriends = false;
+  bool _loadingPending = false;
   bool _showFriendsOnly = false;
   final _searchController = TextEditingController();
+
+  StreamSubscription? _friendsSub;
+  StreamSubscription? _sentRequestsSub;
+  StreamSubscription? _receivedRequestsSub;
 
   @override
   void initState() {
     super.initState();
     _loadCandidates();
-    _loadFriendsProfiles();
+    _setupFriendStreams();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _friendsSub?.cancel();
+    _sentRequestsSub?.cancel();
+    _receivedRequestsSub?.cancel();
     super.dispose();
   }
 
@@ -48,11 +59,11 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
     }
   }
 
-  void _loadFriendsProfiles() {
+  void _setupFriendStreams() {
     final authService = Provider.of<AuthService>(context, listen: false);
     final db = Provider.of<SupabaseService>(context, listen: false);
     
-    db.streamFriends(widget.currentUser.uid).listen((ids) async {
+    _friendsSub = db.streamFriends(widget.currentUser.uid).listen((ids) async {
       if (!mounted) return;
       setState(() {
         _friendIds = ids.toSet();
@@ -71,6 +82,36 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
         setState(() {
           _friendsList = friends;
           _loadingFriends = false;
+        });
+      }
+    });
+
+    _sentRequestsSub = db.streamPendingRequestsSent(widget.currentUser.uid).listen((ids) {
+      if (!mounted) return;
+      setState(() {
+        _sentRequestIds = ids.toSet();
+      });
+    });
+
+    _receivedRequestsSub = db.streamPendingRequestsReceived(widget.currentUser.uid).listen((ids) async {
+      if (!mounted) return;
+      setState(() {
+        _receivedRequestIds = ids.toSet();
+        _loadingPending = true;
+      });
+
+      final List<CSUser> pending = [];
+      for (var id in ids) {
+        final profile = await authService.fetchUserProfile(id);
+        if (profile != null) {
+          pending.add(profile);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _receivedRequestsList = pending;
+          _loadingPending = false;
         });
       }
     });
@@ -296,80 +337,140 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
   }
 
   Widget _buildFriendsListView() {
-    if (_loadingFriends) {
+    if (_loadingFriends || _loadingPending) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_friendsList.isEmpty) {
+    final db = Provider.of<SupabaseService>(context, listen: false);
+
+    if (_friendsList.isEmpty && _receivedRequestsList.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline_rounded, size: 60, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            const Text('No Roommate Friends Yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey)),
+            const Text('No Friends or Requests Yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey)),
             const SizedBox(height: 8),
-            const Text('Search students by username to make friends for room sharing.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+            const Text('Search students by username to connect.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: _friendsList.length,
+    return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemBuilder: (context, idx) {
-        final friend = _friendsList[idx];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundImage: NetworkImage(friend.profilePic),
-              backgroundColor: Colors.grey.shade100,
-            ),
-            title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('@${friend.username.isNotEmpty ? friend.username : 'student'} • Match Score: ${friend.trustScore}%'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.blueAccent),
-                  tooltip: 'Chat with Roommate Friend',
-                  onPressed: () async {
-                    final chatService = Provider.of<ChatService>(context, listen: false);
-                    final chatRoomId = await chatService.getOrCreateChatRoom(
-                      widget.currentUser.uid,
-                      friend.uid,
-                      'Roommate Friends Chat',
-                    );
-                    if (!context.mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatRoomScreen(
-                          chatRoomId: chatRoomId,
-                          currentUserId: widget.currentUser.uid,
-                          currentUserName: widget.currentUser.name,
-                          peerName: friend.name,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
-                  tooltip: 'Remove Friend',
-                  onPressed: () async {
-                    final db = Provider.of<SupabaseService>(context, listen: false);
-                    await db.removeFriend(widget.currentUser.uid, friend.uid);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend')));
-                  },
-                ),
-              ],
+      children: [
+        if (_receivedRequestsList.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(left: 20, top: 12, bottom: 8),
+            child: Text(
+              'PENDING REQUESTS',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber, letterSpacing: 1.0),
             ),
           ),
-        );
-      },
+          ... _receivedRequestsList.map((req) {
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: Colors.amber.shade50.withOpacity(0.15),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: NetworkImage(req.profilePic),
+                  backgroundColor: Colors.grey.shade100,
+                ),
+                title: Text(req.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('@${req.username} • Trust Score: ${req.trustScore}%'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.check_circle_rounded, color: Colors.green),
+                      tooltip: 'Accept Request',
+                      onPressed: () async {
+                        await db.acceptFriendRequest(widget.currentUser.uid, req.uid);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accepted friend request from ${req.name}')));
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.cancel_rounded, color: Colors.redAccent),
+                      tooltip: 'Decline Request',
+                      onPressed: () async {
+                        await db.removeFriend(widget.currentUser.uid, req.uid);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Declined request from ${req.name}')));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const Divider(height: 24, thickness: 1, color: Colors.white10),
+        ],
+
+        const Padding(
+          padding: EdgeInsets.only(left: 20, top: 8, bottom: 8),
+          child: Text(
+            'MY FRIENDS',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.0),
+          ),
+        ),
+        if (_friendsList.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Text('No roommate connections confirmed yet.', style: TextStyle(fontSize: 13, color: Colors.grey, fontStyle: FontStyle.italic)),
+          )
+        else
+          ... _friendsList.map((friend) {
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: NetworkImage(friend.profilePic),
+                  backgroundColor: Colors.grey.shade100,
+                ),
+                title: Text(friend.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('@${friend.username.isNotEmpty ? friend.username : 'student'} • Trust Score: ${friend.trustScore}%'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.blueAccent),
+                      tooltip: 'Chat with Friend',
+                      onPressed: () async {
+                        final chatService = Provider.of<ChatService>(context, listen: false);
+                        final chatRoomId = await chatService.getOrCreateChatRoom(
+                          widget.currentUser.uid,
+                          friend.uid,
+                          'Roommate Friends Chat',
+                        );
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomScreen(
+                              chatRoomId: chatRoomId,
+                              currentUserId: widget.currentUser.uid,
+                              currentUserName: widget.currentUser.name,
+                              peerName: friend.name,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
+                      tooltip: 'Remove Friend',
+                      onPressed: () async {
+                        await db.removeFriend(widget.currentUser.uid, friend.uid);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend')));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
     );
   }
 
@@ -406,7 +507,10 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
 
     final candidate = _candidates[_cardIndex];
     final matchPercentage = candidate['matchPercentage'] ?? 85;
-    final isFriend = _friendIds.contains(candidate['uid'].toString());
+    final candidateUid = candidate['uid'].toString();
+    final bool isFriend = _friendIds.contains(candidateUid);
+    final bool isSent = _sentRequestIds.contains(candidateUid);
+    final bool isReceived = _receivedRequestIds.contains(candidateUid);
 
     return Column(
       children: [
@@ -515,21 +619,48 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           ),
                           Row(
                             children: [
-                              IconButton(
-                                icon: Icon(
-                                  isFriend ? Icons.person_remove_rounded : Icons.person_add_rounded,
-                                  color: isFriend ? Colors.greenAccent : Colors.white,
-                                  size: 28,
-                                ),
-                                tooltip: isFriend ? 'Remove Friend' : 'Add Roommate Friend',
-                                onPressed: () async {
-                                  final db = Provider.of<SupabaseService>(context, listen: false);
+                              Builder(
+                                builder: (context) {
                                   if (isFriend) {
-                                    await db.removeFriend(widget.currentUser.uid, candidate['uid'].toString());
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                                    return IconButton(
+                                      icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent, size: 28),
+                                      tooltip: 'Unfriend roommate',
+                                      onPressed: () async {
+                                        final db = Provider.of<SupabaseService>(context, listen: false);
+                                        await db.removeFriend(widget.currentUser.uid, candidateUid);
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                                      },
+                                    );
+                                  } else if (isSent) {
+                                    return IconButton(
+                                      icon: const Icon(Icons.pending_actions_rounded, color: Colors.orangeAccent, size: 28),
+                                      tooltip: 'Request Sent (Cancel Request)',
+                                      onPressed: () async {
+                                        final db = Provider.of<SupabaseService>(context, listen: false);
+                                        await db.removeFriend(widget.currentUser.uid, candidateUid);
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
+                                      },
+                                    );
+                                  } else if (isReceived) {
+                                    return IconButton(
+                                      icon: const Icon(Icons.person_add_check_rounded, color: Colors.greenAccent, size: 28),
+                                      tooltip: 'Accept Friend Request',
+                                      onPressed: () async {
+                                        final db = Provider.of<SupabaseService>(context, listen: false);
+                                        await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
+                                      },
+                                    );
                                   } else {
-                                    await db.addFriend(widget.currentUser.uid, candidate['uid'].toString());
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Roommate Friend added!')));
+                                    return IconButton(
+                                      icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 28),
+                                      tooltip: 'Add Friend',
+                                      onPressed: () async {
+                                        final db = Provider.of<SupabaseService>(context, listen: false);
+                                        await db.addFriend(widget.currentUser.uid, candidateUid);
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
+                                      },
+                                    );
                                   }
                                 },
                               ),

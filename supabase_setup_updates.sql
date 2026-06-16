@@ -307,3 +307,90 @@ USING (auth.uid() = user_id OR public.is_admin());
 CREATE POLICY "Notifications can be deleted by recipient"
 ON public.notifications FOR DELETE
 USING (auth.uid() = user_id OR public.is_admin());
+
+
+-- =============================================================
+-- 14. Add resolution_notes to maintenance & unique constraint to room_bills & is_read to messages
+-- =============================================================
+
+-- Add resolution_notes to maintenance table
+ALTER TABLE public.maintenance ADD COLUMN IF NOT EXISTS resolution_notes text;
+
+-- Add is_read to messages table
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read boolean DEFAULT false;
+
+-- Add unique constraint to room_bills
+ALTER TABLE public.room_bills ADD CONSTRAINT unique_room_month UNIQUE (room_id, billing_month);
+
+-- Create room_expenses table
+CREATE TABLE IF NOT EXISTS public.room_expenses (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  room_id uuid REFERENCES public.rooms(id) ON DELETE CASCADE NOT NULL,
+  description text NOT NULL,
+  amount integer NOT NULL CHECK (amount > 0),
+  paid_by uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS on room_expenses
+ALTER TABLE public.room_expenses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Room expenses are readable by everyone" ON public.room_expenses;
+CREATE POLICY "Room expenses are readable by everyone"
+ON public.room_expenses FOR SELECT
+USING (true);
+
+DROP POLICY IF EXISTS "Room expenses are insertable by anyone authenticated" ON public.room_expenses;
+CREATE POLICY "Room expenses are insertable by anyone authenticated"
+ON public.room_expenses FOR INSERT
+WITH CHECK (auth.role() = 'authenticated');
+
+-- RLS Updates for roommate_friends table to allow friend request update & delete by recipient/sender
+DROP POLICY IF EXISTS "Users can update friends" ON public.roommate_friends;
+CREATE POLICY "Users can update friends"
+ON public.roommate_friends FOR UPDATE
+USING (auth.uid() = friend_id); -- Only the recipient can accept a request
+
+DROP POLICY IF EXISTS "Users can remove friends" ON public.roommate_friends;
+CREATE POLICY "Users can remove friends"
+ON public.roommate_friends FOR ALL
+USING (auth.uid() = user_id OR auth.uid() = friend_id); -- Either sender or recipient can delete or unfriend
+
+-- Enable Real-Time Replication for room_expenses
+do $$
+begin
+  begin
+    alter publication supabase_realtime drop table public.room_expenses;
+  exception when others then null;
+  end;
+end $$;
+alter publication supabase_realtime add table public.room_expenses;
+
+-- Notify roommates when a maintenance ticket is resolved
+create or replace function public.notify_students_maintenance_resolved()
+returns trigger as $$
+declare
+  roommate_rec record;
+begin
+  if old.status <> 'Resolved' and new.status = 'Resolved' then
+    for roommate_rec in 
+      select student_id from public.bookings 
+      where room_id = new.room_id and status = 'Active'
+    loop
+      insert into public.notifications (user_id, type, title, message)
+      values (
+        roommate_rec.student_id,
+        'maintenance_resolved',
+        '🛠️ Maintenance Issue Solved',
+        'The maintenance ticket "' || new.issue || '" has been resolved. Report: ' || coalesce(new.resolution_notes, 'Issue cleared.')
+      );
+    end loop;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_maintenance_resolved on public.maintenance;
+create trigger on_maintenance_resolved
+  after update on public.maintenance
+  for each row execute procedure public.notify_students_maintenance_resolved();

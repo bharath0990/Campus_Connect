@@ -87,6 +87,7 @@ create table if not exists public.messages (
   sender_name text not null,
   text text not null,
   image_url text,
+  is_read boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -101,7 +102,8 @@ create table if not exists public.maintenance (
   room_address text not null,
   photos text[] default '{}',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  resolved_at timestamp with time zone
+  resolved_at timestamp with time zone,
+  resolution_notes text
 );
 
 -- 1.8 Notifications Table
@@ -460,6 +462,36 @@ create trigger on_payment_success
   for each row execute procedure public.handle_payment_success();
 
 
+-- 3.5 Notify roommates when a maintenance ticket is resolved
+create or replace function public.notify_students_maintenance_resolved()
+returns trigger as $$
+declare
+  roommate_rec record;
+begin
+  if old.status <> 'Resolved' and new.status = 'Resolved' then
+    for roommate_rec in 
+      select student_id from public.bookings 
+      where room_id = new.room_id and status = 'Active'
+    loop
+      insert into public.notifications (user_id, type, title, message)
+      values (
+        roommate_rec.student_id,
+        'maintenance_resolved',
+        '🛠️ Maintenance Issue Solved',
+        'The maintenance ticket "' || new.issue || '" has been resolved. Report: ' || coalesce(new.resolution_notes, 'Issue cleared.')
+      );
+    end loop;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_maintenance_resolved on public.maintenance;
+create trigger on_maintenance_resolved
+  after update on public.maintenance
+  for each row execute procedure public.notify_students_maintenance_resolved();
+
+
 -- ==========================================
 -- 4. REALTIME CONFIGURATION
 -- ==========================================
@@ -492,6 +524,21 @@ begin
     alter publication supabase_realtime drop table public.maintenance;
   exception when others then null;
   end;
+
+  begin
+    alter publication supabase_realtime drop table public.notifications;
+  exception when others then null;
+  end;
+
+  begin
+    alter publication supabase_realtime drop table public.room_bills;
+  exception when others then null;
+  end;
+
+  begin
+    alter publication supabase_realtime drop table public.room_expenses;
+  exception when others then null;
+  end;
 end $$;
 
 -- Add tables to the supabase_realtime publication
@@ -500,3 +547,6 @@ alter publication supabase_realtime add table public.bookings;
 alter publication supabase_realtime add table public.chats;
 alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.maintenance;
+alter publication supabase_realtime add table public.notifications;
+alter publication supabase_realtime add table public.room_bills;
+alter publication supabase_realtime add table public.room_expenses;

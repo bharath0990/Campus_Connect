@@ -2202,10 +2202,23 @@ async function loadChatView(pane) {
       if (peer) peerName = peer.name;
     }
 
+    // Query unread message count
+    const { count } = await db
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('chat_id', chat.id)
+      .neq('sender_id', currentUserProfile.id)
+      .eq('is_read', false);
+
+    const unreadBadge = (count && count > 0) ? `<span class="chat-thread-unread-badge">${count}</span>` : '';
+
     const item = document.createElement('div');
     item.className = `chat-thread-item ${chat.id === activeChatRoomId ? 'active' : ''}`;
     item.innerHTML = `
-      <div class="chat-thread-name">${peerName}</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div class="chat-thread-name">${peerName}</div>
+        ${unreadBadge}
+      </div>
       <div class="chat-thread-last">${chat.last_message || 'No messages yet'}</div>
     `;
     
@@ -2214,6 +2227,9 @@ async function loadChatView(pane) {
       document.querySelectorAll('.chat-thread-item').forEach(el => el.classList.remove('active'));
       item.classList.add('active');
       loadMessagesForChat(chat.id, peerName);
+      // Remove badge locally upon opening
+      const badge = item.querySelector('.chat-thread-unread-badge');
+      if (badge) badge.remove();
     });
 
     threadContainer.appendChild(item);
@@ -2263,6 +2279,13 @@ async function loadMessagesForChat(chatId, peerName) {
   const messagesPane = document.getElementById('chat-messages-scroll');
   messagesPane.innerHTML = '';
 
+  // Mark existing messages as read in Supabase
+  await db.from('messages')
+    .update({ is_read: true })
+    .eq('chat_id', chatId)
+    .neq('sender_id', currentUserProfile.id)
+    .eq('is_read', false);
+
   // Retrieve message log
   const { data: messages, error } = await db.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
   if (error || !messages) return;
@@ -2284,8 +2307,14 @@ async function loadMessagesForChat(chatId, peerName) {
   }
 
   chatMessagesListener = db.channel(`messages:${chatId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, payload => {
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, async (payload) => {
       const msg = payload.new;
+      
+      // Mark as read in DB if sent by peer
+      if (msg.sender_id !== currentUserProfile.id) {
+        await db.from('messages').update({ is_read: true }).eq('id', msg.id);
+      }
+
       const bubble = document.createElement('div');
       const isSent = msg.sender_id === currentUserProfile.id;
       bubble.className = `chat-bubble ${isSent ? 'sent' : 'received'}`;
@@ -2803,27 +2832,23 @@ async function loadOwnerBills(pane) {
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
 
-    // Insert or update room bill
+    // Check if bills for this room and month already exist
     const { data: existing } = await db.from('room_bills').select('id').eq('room_id', roomId).eq('billing_month', month).maybeSingle();
 
-    let saveErr = null;
     if (existing) {
-      const { error } = await db.from('room_bills').update({
-        electricity_bill: electricity,
-        maid_bill: maid,
-        wifi_bill: wifi
-      }).eq('id', existing.id);
-      saveErr = error;
-    } else {
-      const { error } = await db.from('room_bills').insert({
-        room_id: roomId,
-        electricity_bill: electricity,
-        maid_bill: maid,
-        wifi_bill: wifi,
-        billing_month: month
-      });
-      saveErr = error;
+      alert(`Bills for ${month} have already been added for this room. You can only add bills once per month.`);
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Save Bills & Split';
+      return;
     }
+
+    const { error: saveErr } = await db.from('room_bills').insert({
+      room_id: roomId,
+      electricity_bill: electricity,
+      maid_bill: maid,
+      wifi_bill: wifi,
+      billing_month: month
+    });
 
     if (saveErr) {
       alert(`Save Error: ${saveErr.message}`);

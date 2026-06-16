@@ -126,3 +126,33 @@ drop trigger if exists on_payment_success on public.payments;
 create trigger on_payment_success
   after insert or update on public.payments
   for each row execute procedure public.handle_payment_success();
+
+
+-- 5. Notify roommates when a maintenance ticket is resolved
+create or replace function public.notify_students_maintenance_resolved()
+returns trigger as $$
+declare
+  roommate_rec record;
+begin
+  if old.status <> 'Resolved' and new.status = 'Resolved' then
+    for roommate_rec in 
+      select student_id from public.bookings 
+      where room_id = new.room_id and status = 'Active'
+    loop
+      insert into public.notifications (user_id, type, title, message)
+      values (
+        roommate_rec.student_id,
+        'maintenance_resolved',
+        '🛠️ Maintenance Issue Solved',
+        'The maintenance ticket "' || new.issue || '" has been resolved. Report: ' || coalesce(new.resolution_notes, 'Issue cleared.')
+      );
+    end loop;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_maintenance_resolved on public.maintenance;
+create trigger on_maintenance_resolved
+  after update on public.maintenance
+  for each row execute procedure public.notify_students_maintenance_resolved();

@@ -569,10 +569,11 @@ class SupabaseService {
   }
 
   // Update SLA maintenance tickets
-  Future<void> updateTicketStatus(String ticketId, String newStatus) async {
+  Future<void> updateTicketStatus(String ticketId, String newStatus, {String? resolutionNotes}) async {
     await _client.from('maintenance').update({
       'status': newStatus,
-      'resolved_at': newStatus == 'Resolved' ? DateTime.now().toIso8601String() : null
+      'resolved_at': newStatus == 'Resolved' ? DateTime.now().toIso8601String() : null,
+      if (resolutionNotes != null) 'resolution_notes': resolutionNotes
     }).eq('id', ticketId);
   }
 
@@ -663,31 +664,58 @@ class SupabaseService {
     }
   }
 
-  // Add Roommate Friend connection
+  // Add Roommate Friend connection (starts as pending)
   Future<void> addFriend(String userId, String friendId) async {
     try {
       await _client.from('roommate_friends').insert({
         'user_id': userId,
         'friend_id': friendId,
+        'status': 'pending',
       });
+      // Notify peer about the friend request
+      await createNotification(
+        friendId,
+        'friend_request',
+        '👥 New Friend Request',
+        'You received a roommate friend request from a student. Open Matches to accept/decline.',
+      );
     } catch (e) {
       debugPrint("Add friend failed: $e");
     }
   }
 
-  // Remove Roommate Friend connection
+  // Accept Roommate Friend request
+  Future<void> acceptFriendRequest(String userId, String friendId) async {
+    try {
+      await _client.from('roommate_friends')
+          .update({'status': 'accepted'})
+          .eq('user_id', friendId) // friendId is the sender
+          .eq('friend_id', userId); // userId is the receiver accepting it
+      
+      // Notify sender about request acceptance
+      await createNotification(
+        friendId,
+        'friend_accept',
+        '👥 Friend Request Accepted!',
+        'Your roommate friend request has been accepted! You can now start chat negotiations.',
+      );
+    } catch (e) {
+      debugPrint("Accept friend request failed: $e");
+    }
+  }
+
+  // Remove Roommate Friend connection (or cancel/decline a request)
   Future<void> removeFriend(String userId, String friendId) async {
     try {
       await _client.from('roommate_friends')
           .delete()
-          .eq('user_id', userId)
-          .eq('friend_id', friendId);
+          .or('and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)');
     } catch (e) {
       debugPrint("Remove friend failed: $e");
     }
   }
 
-  // Stream friend connections
+  // Stream friend connections (only accepted ones)
   Stream<List<String>> streamFriends(String userId) {
     return _client
         .from('roommate_friends')
@@ -695,13 +723,41 @@ class SupabaseService {
         .map((maps) {
           final List<String> friendIds = [];
           for (var m in maps) {
-            if (m['user_id'] == userId) {
-              friendIds.add(m['friend_id'].toString());
-            } else if (m['friend_id'] == userId) {
-              friendIds.add(m['user_id'].toString());
+            if (m['status'] == 'accepted') {
+              if (m['user_id'] == userId) {
+                friendIds.add(m['friend_id'].toString());
+              } else if (m['friend_id'] == userId) {
+                friendIds.add(m['user_id'].toString());
+              }
             }
           }
           return friendIds;
+        });
+  }
+
+  // Stream incoming pending friend requests (received requests)
+  Stream<List<String>> streamPendingRequestsReceived(String userId) {
+    return _client
+        .from('roommate_friends')
+        .stream(primaryKey: ['id'])
+        .map((maps) {
+          return maps
+              .where((m) => m['friend_id'] == userId && m['status'] == 'pending')
+              .map((m) => m['user_id'].toString())
+              .toList();
+        });
+  }
+
+  // Stream outgoing pending friend requests (sent requests)
+  Stream<List<String>> streamPendingRequestsSent(String userId) {
+    return _client
+        .from('roommate_friends')
+        .stream(primaryKey: ['id'])
+        .map((maps) {
+          return maps
+              .where((m) => m['user_id'] == userId && m['status'] == 'pending')
+              .map((m) => m['friend_id'].toString())
+              .toList();
         });
   }
 
@@ -859,6 +915,41 @@ class ChatService {
     } catch (e) {
       return chatRoomId;
     }
+  }
+
+  // Mark messages as read
+  Future<void> markMessagesAsRead(String chatRoomId, String currentUserId) async {
+    try {
+      await _client
+          .from('messages')
+          .update({'is_read': true})
+          .eq('chat_id', chatRoomId)
+          .neq('sender_id', currentUserId)
+          .eq('is_read', false);
+    } catch (e) {
+      debugPrint("Failed to mark messages as read: $e");
+    }
+  }
+
+  // Stream unread count for a chat room
+  Stream<int> streamUnreadCount(String chatRoomId, String currentUserId) {
+    return _client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('chat_id', chatRoomId)
+        .map((maps) {
+          return maps.where((m) => m['sender_id'] != currentUserId && (m['is_read'] ?? false) == false).length;
+        });
+  }
+
+  // Stream total unread count for current user
+  Stream<int> streamTotalUnreadCount(String currentUserId) {
+    return _client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .map((maps) {
+          return maps.where((m) => m['sender_id'] != currentUserId && (m['is_read'] ?? false) == false).length;
+        });
   }
 }
 

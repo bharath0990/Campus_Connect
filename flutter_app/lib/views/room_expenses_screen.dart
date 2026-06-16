@@ -71,7 +71,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
       {'id': _currentUserId, 'name': 'You'},
     ];
     _mockExpenses[2]['paid_by_id'] = _currentUserId;
-    _loadExpenses();
+    _setupRealtimeStreams();
     _loadLandlordBillsAndRoommates();
   }
 
@@ -79,33 +79,64 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
   void dispose() {
     _descController.dispose();
     _amountController.dispose();
+    _expensesSubscription?.cancel();
+    _billsSubscription?.cancel();
+    _paymentsSubscription?.cancel();
     super.dispose();
   }
 
-  void _loadExpenses() async {
-    try {
-      final client = Supabase.instance.client;
-      // Fetch room expenses from database
-      final response = await client.from('room_expenses').select().eq('room_id', widget.roomId);
-      final list = response as List;
-      if (list.isNotEmpty) {
-        setState(() {
-          _mockExpenses.clear();
-          for (var item in list) {
-            _mockExpenses.add({
-              'id': item['id'],
-              'description': item['description'],
-              'amount': item['amount'],
-              'paid_by_name': item['paid_by'] == _currentUserId ? 'You' : 'Roommate',
-              'paid_by_id': item['paid_by'],
-              'date': item['created_at'].toString().split('T')[0],
-            });
-          }
+  StreamSubscription? _expensesSubscription;
+  StreamSubscription? _billsSubscription;
+  StreamSubscription? _paymentsSubscription;
+
+  void _setupRealtimeStreams() {
+    final client = Supabase.instance.client;
+    final db = SupabaseService();
+    final paymentService = PaymentService();
+
+    // 1. Stream personal room expenses
+    _expensesSubscription = client
+        .from('room_expenses')
+        .stream(primaryKey: ['id'])
+        .eq('room_id', widget.roomId)
+        .listen((list) {
+          if (!mounted) return;
+          setState(() {
+            _mockExpenses.clear();
+            for (var item in list) {
+              _mockExpenses.add({
+                'id': item['id'],
+                'description': item['description'],
+                'amount': item['amount'],
+                'paid_by_name': item['paid_by'] == _currentUserId ? 'You' : (_activeRoommates.firstWhere((rm) => rm['id'] == item['paid_by'], orElse: () => {'name': 'Roommate'})['name']),
+                'paid_by_id': item['paid_by'],
+                'date': item['created_at'].toString().split('T')[0],
+              });
+            }
+          });
         });
-      }
-    } catch (e) {
-      // Supabase table not migrated, fallback to mock list
-    }
+
+    // 2. Stream landlord bills
+    _billsSubscription = db.streamRoomBills(widget.roomId).listen((bills) {
+      if (!mounted) return;
+      setState(() {
+        _landlordBills = bills;
+        _loadingBills = false;
+      });
+    }, onError: (err) {
+      if (!mounted) return;
+      setState(() {
+        _loadingBills = false;
+      });
+    });
+
+    // 3. Stream payments for the current user
+    _paymentsSubscription = paymentService.streamPayments(widget.currentUser.uid).listen((payments) {
+      if (!mounted) return;
+      setState(() {
+        _studentPayments = payments;
+      });
+    });
   }
 
   void _loadLandlordBillsAndRoommates() async {
@@ -179,20 +210,6 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
       }
     }
 
-    // Fetch successful payments for the current user to track paid bills
-    try {
-      final paymentsResponse = await client
-          .from('payments')
-          .select('receipt, amount, created_at')
-          .eq('student_id', widget.currentUser.uid)
-          .eq('status', 'Successful');
-      setState(() {
-        _studentPayments = List<Map<String, dynamic>>.from(paymentsResponse);
-      });
-    } catch (e) {
-      debugPrint("Failed to load user payments: $e");
-    }
-
     // Fetch room details (rent and deposit)
     try {
       final roomData = await client
@@ -211,35 +228,6 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         _roomRent = 12000;
         _roomDeposit = 24000;
         _roomTitle = 'Mock PG Room';
-      });
-    }
-
-    // Fetch landlord bills
-    try {
-      final response = await client
-          .from('room_bills')
-          .select()
-          .eq('room_id', widget.roomId)
-          .order('created_at', ascending: false);
-      final list = response as List;
-      setState(() {
-        _landlordBills = list.map((m) => RoomBill.fromMap(m, m['id'].toString())).toList();
-        _loadingBills = false;
-      });
-    } catch (e) {
-      setState(() {
-        _landlordBills = [
-          RoomBill(
-            id: 'bill_mock_1',
-            roomId: widget.roomId,
-            electricityBill: 1500,
-            maidBill: 2000,
-            wifiBill: 900,
-            billingMonth: 'June 2026',
-            createdAt: DateTime.now(),
-          )
-        ];
-        _loadingBills = false;
       });
     }
   }
@@ -471,7 +459,10 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadExpenses,
+            onPressed: () {
+              _setupRealtimeStreams();
+              _loadLandlordBillsAndRoommates();
+            },
           ),
         ],
       ),

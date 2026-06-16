@@ -63,6 +63,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     'https://api.dicebear.com/7.x/avataaars/png?seed=Aneka',
     'https://api.dicebear.com/7.x/avataaars/png?seed=Milo',
     'https://api.dicebear.com/7.x/avataaars/png?seed=Sophia',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Jack',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Lily',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Leo',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Maya',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Oliver',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Zoe',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Max',
+    'https://api.dicebear.com/7.x/avataaars/png?seed=Luna',
   ];
 
   StreamSubscription<List<Map<String, dynamic>>>? _notificationsSubscription;
@@ -1034,6 +1042,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
+  String _getMonthName(int month) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    if (month >= 1 && month <= 12) return months[month - 1];
+    return 'June';
+  }
+
   Widget _buildBookingsView(SupabaseService db, PaymentService payment) {
     return StreamBuilder<List<Booking>>(
       stream: db.streamBookings(widget.user.uid, false),
@@ -1057,32 +1071,38 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           itemCount: bookings.length,
           itemBuilder: (context, idx) {
             final b = bookings[idx];
             return Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Booking ID: ${b.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        Chip(
-                          label: Text(
+                        Text('Booking ID: ${b.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: b.status == 'Active' ? Colors.green.withOpacity(0.15) : Colors.amber.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
                             b.status,
                             style: TextStyle(
-                              color: b.status == 'Active' ? Colors.greenAccent : Colors.amber,
+                              color: b.status == 'Active' ? Colors.green.shade800 : Colors.amber.shade800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          backgroundColor: b.status == 'Active' ? Colors.green.withOpacity(0.2) : Colors.amber.withOpacity(0.2),
                         ),
                       ],
                     ),
-                    Divider(color: Colors.grey.shade200),
                     const SizedBox(height: 8),
                     StreamBuilder<List<Booking>>(
                       stream: db.streamActiveBookingsForRoom(b.roomId),
@@ -1094,40 +1114,63 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Rent Cost: ₹${b.rent} / month',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Rent Cost: ₹${b.rent}/mo',
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                    ),
+                                    if (roommates.length > 1) ...[
+                                      Text(
+                                        'Your Share: ₹$splitRent/mo',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context).primaryColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      'Move In',
+                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                    ),
+                                    Text(
+                                      b.moveInDate.toString().split(' ')[0],
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 6),
                             if (roommates.length > 1) ...[
-                              const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Icon(Icons.people_alt_rounded, size: 16, color: Theme.of(context).primaryColor),
-                                  const SizedBox(width: 6),
+                                  Icon(Icons.people_alt_rounded, size: 14, color: Theme.of(context).primaryColor),
+                                  const SizedBox(width: 4),
                                   Text(
                                     'Active Roommates: $activeCount',
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Your Share: ₹$splitRent/mo',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
+                                    style: const TextStyle(fontSize: 11, color: Colors.black54),
                                   ),
                                 ],
                               ),
                             ] else ...[
-                              const SizedBox(height: 4),
                               const Row(
                                 children: [
-                                  Icon(Icons.person_outline_rounded, size: 16, color: Colors.grey),
-                                  SizedBox(width: 6),
+                                  Icon(Icons.person_outline_rounded, size: 14, color: Colors.grey),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Single Occupant (No roommate split)',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                    'Single Occupant PG room',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
                                   ),
                                 ],
                               ),
@@ -1136,14 +1179,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                         );
                       },
                     ),
-                    const SizedBox(height: 4),
-                    Text('Move In: ${b.moveInDate.toString().split(' ')[0]}', style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                    const SizedBox(height: 16),
-                    
+                    const SizedBox(height: 12),
                     if (b.status == 'Requested') ...[
                       SizedBox(
                         width: double.infinity,
-                        height: 46,
+                        height: 40,
                         child: ElevatedButton(
                           onPressed: _processingPayment ? null : () async {
                             setState(() {
@@ -1175,11 +1215,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                           },
                           child: _processingPayment 
                               ? const SizedBox(
-                                  width: 20, 
-                                  height: 20, 
+                                  width: 18, 
+                                  height: 18, 
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                                 )
-                              : const Text('Pay Booking Deposit (Razorpay)'),
+                              : const Text('Pay Booking Deposit (Razorpay)', style: TextStyle(fontSize: 12)),
                         ),
                       ),
                     ] else ...[
@@ -1632,6 +1672,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   final rentPaidThisMonth = payments.any((p) {
                     if (p['booking_id'] != activeBooking.id) return false;
                     if (p['status'] != 'Successful') return false;
+                    final receipt = p['receipt']?.toString();
+                    if (receipt == null) return false;
+                    
+                    // Must be a rent payment (matches format 'Monthly Rent - [Month] [Year]') and NOT landlord bill
+                    if (!receipt.contains('Monthly Rent')) return false;
+
                     final dateStr = p['created_at'] as String?;
                     if (dateStr == null) return false;
                     final pDate = DateTime.tryParse(dateStr);
@@ -1698,17 +1744,27 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                         bookingId: activeBooking.id,
                                         studentId: widget.user.uid,
                                         paymentService: Provider.of<PaymentService>(context, listen: false),
-                                        onPaymentSuccess: (txId) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => PaymentSuccessScreen(
-                                                bookingId: activeBooking.id,
-                                                amount: activeBooking.rent,
-                                                transactionId: txId,
+                                        onPaymentSuccess: (txId) async {
+                                          final client = Supabase.instance.client;
+                                          try {
+                                            await client.from('payments').update({
+                                              'receipt': 'Monthly Rent - ${_getMonthName(DateTime.now().month)} ${DateTime.now().year}',
+                                            }).eq('razorpay_id', txId);
+                                          } catch (e) {
+                                            debugPrint("Failed to update rent receipt: $e");
+                                          }
+                                          if (context.mounted) {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => PaymentSuccessScreen(
+                                                  bookingId: activeBooking.id,
+                                                  amount: activeBooking.rent,
+                                                  transactionId: txId,
+                                                ),
                                               ),
-                                            ),
-                                          );
+                                            );
+                                          }
                                         },
                                       );
                                     },
@@ -2817,7 +2873,20 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       const BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: 'Matches'),
       const BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Bookings'),
       const BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Tickets'),
-      const BottomNavigationBarItem(icon: Icon(Icons.forum_rounded), label: 'Messages'),
+      BottomNavigationBarItem(
+        icon: StreamBuilder<int>(
+          stream: ChatService().streamTotalUnreadCount(_currentUser.uid),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+            return Badge(
+              isLabelVisible: unreadCount > 0,
+              backgroundColor: Colors.red,
+              child: const Icon(Icons.forum_rounded),
+            );
+          },
+        ),
+        label: 'Messages',
+      ),
       const BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
     ];
 

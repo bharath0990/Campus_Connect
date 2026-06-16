@@ -78,6 +78,7 @@ create table if not exists public.messages (
   sender_name text not null,
   text text not null,
   image_url text,
+  is_read boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -92,7 +93,8 @@ create table if not exists public.maintenance (
   room_address text not null,
   photos text[] default '{}',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  resolved_at timestamp with time zone
+  resolved_at timestamp with time zone,
+  resolution_notes text
 );
 
 -- 8. Notifications Table
@@ -124,5 +126,15 @@ create table if not exists public.complaints (
   description text not null,
   status text not null check (status in ('Open', 'Resolved')),
   sla text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 11. Room Expenses Table (for personal roommate expense splitting)
+create table if not exists public.room_expenses (
+  id uuid default uuid_generate_v4() primary key,
+  room_id uuid references public.rooms(id) on delete cascade not null,
+  description text not null,
+  amount integer not null check (amount > 0),
+  paid_by uuid references public.users(id) on delete cascade not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
