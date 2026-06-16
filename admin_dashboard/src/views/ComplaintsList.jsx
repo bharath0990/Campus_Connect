@@ -26,34 +26,47 @@ export default function ComplaintsList() {
   const [notification, setNotification] = useState('');
   const [isOffline, setIsOffline] = useState(false);
 
-  useEffect(() => {
-    async function loadLiveComplaints() {
-      try {
-        const { data, error } = await supabase
-          .from('complaints')
-          .select('*, complainant:complainant_id(name)');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const formatted = data.map(c => ({
-            id: c.id,
-            room: c.room_id || 'Room Listing',
-            type: c.type,
-            description: c.description,
-            sla: c.sla || 'Active',
-            status: c.status,
-            complainant: c.complainant?.name || 'Student'
-          }));
-          setComplaints(formatted);
-        }
-        setIsOffline(false);
-      } catch (err) {
-        console.warn("Using offline fallback complaints registry.", err);
-        setIsOffline(true);
+  async function loadLiveComplaints() {
+    try {
+      const { data, error } = await supabase
+        .from('complaints')
+        .select('*, complainant:complainant_id(name)');
+      
+      if (error) throw error;
+      
+      if (data) {
+        const formatted = data.map(c => ({
+          id: c.id,
+          room: c.room_id || 'Room Listing',
+          type: c.type,
+          description: c.description,
+          sla: c.sla || 'Active',
+          status: c.status,
+          complainant: c.complainant?.name || 'Student'
+        }));
+        setComplaints(formatted);
       }
+      setIsOffline(false);
+    } catch (err) {
+      console.warn("Using offline fallback complaints registry.", err);
+      setIsOffline(true);
     }
+  }
+
+  useEffect(() => {
     loadLiveComplaints();
+
+    // Subscribe to realtime complaints table changes
+    const channel = supabase
+      .channel('disputes-complaints-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, () => {
+        loadLiveComplaints();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleAction = async (id, newStatus, message) => {
@@ -129,7 +142,7 @@ export default function ComplaintsList() {
             gap: '16px'
           }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justify: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 'bold' }}>{comp.id} • Room {comp.room}</span>
                 <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginTop: '4px' }}>{comp.type}</h3>

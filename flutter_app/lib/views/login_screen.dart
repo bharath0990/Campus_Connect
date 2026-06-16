@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../services/services.dart';
+import 'blocked_screen.dart';
 import 'student_home_screen.dart';
 import 'owner_dashboard_screen.dart';
 
@@ -70,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             socialStatus: 'medium',
           ),
           username: (user.email != null && user.email!.isNotEmpty) ? (user.email!.split('@')[0] + '_' + (user.id.length > 5 ? user.id.substring(0, 5) : user.id)) : 'user_${user.id.substring(0, 5)}',
+          blocked: false,
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -275,9 +277,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         socialStatus: 'balanced',
       ),
       username: _emailController.text.isNotEmpty ? (_emailController.text.split('@')[0] + '_' + (uid.length > 5 ? uid.substring(0, 5) : uid)) : 'user_${uid.substring(0, 5)}',
+      blocked: false,
     );
 
     if (!mounted) return;
+
+    if (userProfile.blocked) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const BlockedScreen()),
+        (route) => false,
+      );
+      return;
+    }
 
     if (_currentRole == 'owner') {
       Navigator.pushAndRemoveUntil(

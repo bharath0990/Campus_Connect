@@ -12,6 +12,7 @@ import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'camera_scan_overlay.dart';
 import 'chats_list_screen.dart';
+import 'blocked_screen.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
   final String userId;
@@ -55,12 +56,26 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   ];
 
   StreamSubscription<List<Map<String, dynamic>>>? _notificationsSubscription;
+  StreamSubscription<CSUser?>? _profileSubscription;
   Set<String> _seenNotificationIds = {};
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    
+    final authService = Provider.of<AuthService>(context, listen: false);
+    _profileSubscription = authService.streamUserProfile(widget.userId).listen((profile) {
+      if (profile != null && profile.blocked && mounted) {
+        _profileSubscription?.cancel();
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const BlockedScreen()),
+          (route) => false,
+        );
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final db = Provider.of<SupabaseService>(context, listen: false);
       _setupNotificationsListener(db, widget.userId);
@@ -73,6 +88,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     _phoneController.dispose();
     _usernameController.dispose();
     _notificationsSubscription?.cancel();
+    _profileSubscription?.cancel();
     super.dispose();
   }
 
@@ -110,6 +126,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             socialStatus: 'balanced',
           ),
           username: '',
+          blocked: false,
         );
         _nameController.text = widget.name;
         _phoneController.text = '';
@@ -1534,6 +1551,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       joinedDate: _currentUser.joinedDate,
       preferences: _currentUser.preferences,
       username: _usernameController.text.trim(),
+      blocked: _currentUser.blocked,
     );
 
     try {
@@ -1789,6 +1807,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                     joinedDate: _currentUser.joinedDate,
                                     preferences: _currentUser.preferences,
                                     username: _currentUser.username,
+                                    blocked: _currentUser.blocked,
                                   );
 
                                   await authService.updateUserProfile(updatedUser);

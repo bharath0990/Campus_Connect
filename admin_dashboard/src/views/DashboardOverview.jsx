@@ -50,9 +50,9 @@ export default function DashboardOverview() {
         }
 
         setMetrics([
-          { label: 'Total Verified Students', count: String(usersCount || 1842), change: '+12%', color: 'var(--primary)', icon: '📚' },
-          { label: 'Verified Listings', count: String(roomsCount || 394), change: '+8%', color: 'var(--accent)', icon: '🏠' },
-          { label: 'Active Bookings', count: String(bookingsCount || 124), change: '+24%', color: 'var(--secondary)', icon: '🤝' },
+          { label: 'Total Verified Students', count: String(usersCount ?? 1842), change: '+12%', color: 'var(--primary)', icon: '📚' },
+          { label: 'Verified Listings', count: String(roomsCount ?? 394), change: '+8%', color: 'var(--accent)', icon: '🏠' },
+          { label: 'Active Bookings', count: String(bookingsCount ?? 124), change: '+24%', color: 'var(--secondary)', icon: '🤝' },
           { label: 'Monthly GMV Payouts', count: `₹${gmv.toFixed(1)}L`, change: '+18%', color: 'var(--warning)', icon: '💳' }
         ]);
         setIsOffline(false);
@@ -172,6 +172,39 @@ export default function DashboardOverview() {
     // Subscribe to realtime channels
     const channel = supabase
       .channel('admin-dashboard-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        fetchLiveCounts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
+        fetchLiveCounts();
+        if (payload.eventType === 'INSERT') {
+          const r = payload.new;
+          const newLog = {
+            time: 'Just Now',
+            type: 'Listing',
+            message: `New room listing submitted: "${r.title}" in ${r.city}`,
+            status: r.verified ? 'Success' : 'Pending'
+          };
+          setActivityLogs(prev => [newLog, ...prev.slice(0, 9)]);
+        } else if (payload.eventType === 'DELETE') {
+          const newLog = {
+            time: 'Just Now',
+            type: 'Listing',
+            message: `Room listing was deleted from database`,
+            status: 'Success'
+          };
+          setActivityLogs(prev => [newLog, ...prev.slice(0, 9)]);
+        } else if (payload.eventType === 'UPDATE') {
+          const r = payload.new;
+          const newLog = {
+            time: 'Just Now',
+            type: 'Listing',
+            message: `Listing "${r.title}" updated (Verified: ${r.verified})`,
+            status: r.verified ? 'Success' : 'Pending'
+          };
+          setActivityLogs(prev => [newLog, ...prev.slice(0, 9)]);
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const p = payload.new;

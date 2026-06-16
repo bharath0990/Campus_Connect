@@ -857,10 +857,16 @@ async function handleSignIn(e) {
     db.from('users').select('*').eq('id', data.user.id).single()
       .then(({ data: dbProfile }) => {
         if (dbProfile) {
+          if (dbProfile.blocked) {
+            alert("Your account has been suspended by the administrator.");
+            handleSignOut();
+            return;
+          }
           currentUserProfile = dbProfile;
           if (navUsername) navUsername.textContent = dbProfile.name;
           const avatarEl = document.getElementById('dashboard-user-avatar');
           if (avatarEl) avatarEl.src = dbProfile.profile_pic || currentUserProfile.profile_pic;
+          setupRealtimeBlockListener(db, data.user.id);
         }
       }).catch(() => {});
 
@@ -876,7 +882,28 @@ async function handleSignIn(e) {
   }
 }
 
+let userBlockSubscription = null;
+
+function setupRealtimeBlockListener(dbClient, userId) {
+  if (userBlockSubscription) {
+    userBlockSubscription.unsubscribe();
+  }
+
+  userBlockSubscription = dbClient.channel('realtime-user-block')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` }, (payload) => {
+      if (payload.new && payload.new.blocked) {
+        alert("Your account has been suspended by the administrator.");
+        handleSignOut();
+      }
+    })
+    .subscribe();
+}
+
 async function handleSignOut() {
+  if (userBlockSubscription) {
+    userBlockSubscription.unsubscribe();
+    userBlockSubscription = null;
+  }
   await db.auth.signOut();
   currentUserProfile = null;
   hideDashboard();
@@ -1132,9 +1159,15 @@ db.auth.onAuthStateChange(async (event, session) => {
     }
 
     if (profile) {
+      if (profile.blocked) {
+        alert("Your account has been suspended by the administrator.");
+        db.auth.signOut();
+        return;
+      }
       currentUserProfile = profile;
       closeAuthModal();
       syncUIForLoggedInUser();
+      setupRealtimeBlockListener(db, userId);
     }
     return;
   }

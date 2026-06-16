@@ -24,6 +24,7 @@ import 'razorpay_checkout_sheet.dart';
 import 'camera_scan_overlay.dart';
 import 'chats_list_screen.dart';
 import 'chat_room_screen.dart';
+import 'blocked_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   final CSUser user;
@@ -74,6 +75,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   ];
 
   StreamSubscription<List<Map<String, dynamic>>>? _notificationsSubscription;
+  StreamSubscription<CSUser?>? _profileSubscription;
   Set<String> _seenNotificationIds = {};
 
   @override
@@ -91,6 +93,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _profilePic = _currentUser.profilePic;
     _usernameController.text = _currentUser.username;
     _fetchLocation();
+    
+    final authService = Provider.of<AuthService>(context, listen: false);
+    _profileSubscription = authService.streamUserProfile(_currentUser.uid).listen((profile) {
+      if (profile != null && profile.blocked && mounted) {
+        _profileSubscription?.cancel();
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const BlockedScreen()),
+          (route) => false,
+        );
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final db = Provider.of<SupabaseService>(context, listen: false);
       _setupNotificationsListener(db, _currentUser.uid);
@@ -103,6 +118,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _phoneController.dispose();
     _usernameController.dispose();
     _notificationsSubscription?.cancel();
+    _profileSubscription?.cancel();
     super.dispose();
   }
 
@@ -1938,6 +1954,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       joinedDate: _currentUser.joinedDate,
       preferences: updatedPreferences,
       username: _usernameController.text.trim(),
+      blocked: _currentUser.blocked,
     );
 
     try {
@@ -2276,6 +2293,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                     joinedDate: _currentUser.joinedDate,
                                     preferences: _currentUser.preferences,
                                     username: _currentUser.username,
+                                    blocked: _currentUser.blocked,
                                   );
 
                                   await authService.updateUserProfile(updatedUser);

@@ -14,6 +14,7 @@ class CSUser {
   final DateTime joinedDate;
   final UserPreferences preferences;
   final String username;
+  final bool blocked;
 
   CSUser({
     required this.uid,
@@ -28,6 +29,7 @@ class CSUser {
     required this.joinedDate,
     required this.preferences,
     required this.username,
+    required this.blocked,
   });
 
   factory CSUser.fromMap(Map<String, dynamic> data, String id) {
@@ -44,6 +46,7 @@ class CSUser {
       joinedDate: DateTime.parse(data['joined_date'] ?? DateTime.now().toIso8601String()),
       preferences: UserPreferences.fromMap(data['preferences'] ?? {}),
       username: data['username'] ?? '',
+      blocked: data['blocked'] ?? false,
     );
   }
 
@@ -61,6 +64,7 @@ class CSUser {
       'joined_date': joinedDate.toIso8601String(),
       'preferences': preferences.toMap(),
       'username': username,
+      'blocked': blocked,
     };
   }
 }

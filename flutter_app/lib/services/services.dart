@@ -106,6 +106,7 @@ class AuthService {
               joinedDate: profile.joinedDate,
               preferences: profile.preferences,
               username: profile.username,
+              blocked: profile.blocked,
             );
             updateUserProfile(profile).catchError((e) {
               debugPrint("Failed to sync Google avatar back to Supabase: $e");
@@ -185,6 +186,18 @@ class AuthService {
       ),
     );
     return _client.storage.from('room-images').getPublicUrl(fileName);
+  }
+
+  // Stream profile of a specific user for real-time blocking/update notifications
+  Stream<CSUser?> streamUserProfile(String uid) {
+    return _client
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', uid)
+        .map((list) {
+          if (list.isEmpty) return null;
+          return CSUser.fromMap(list.first, uid);
+        });
   }
 }
 

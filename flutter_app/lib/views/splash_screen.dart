@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/services.dart';
+import 'blocked_screen.dart';
 import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'onboarding_screen.dart';
@@ -39,6 +40,13 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
       
       if (profile != null) {
+        if (profile.blocked) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const BlockedScreen()),
+          );
+          return;
+        }
         if (profile.role == 'owner') {
           Navigator.pushReplacement(
             context,

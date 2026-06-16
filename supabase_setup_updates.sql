@@ -320,6 +320,7 @@ ALTER TABLE public.maintenance ADD COLUMN IF NOT EXISTS resolution_notes text;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read boolean DEFAULT false;
 
 -- Add unique constraint to room_bills
+ALTER TABLE public.room_bills DROP CONSTRAINT IF EXISTS unique_room_month;
 ALTER TABLE public.room_bills ADD CONSTRAINT unique_room_month UNIQUE (room_id, billing_month);
 
 -- Create room_expenses table

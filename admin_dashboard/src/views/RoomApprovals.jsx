@@ -7,36 +7,50 @@ export default function RoomApprovals() {
   const [notification, setNotification] = useState('');
   const [isOffline, setIsOffline] = useState(false);
 
-  useEffect(() => {
-    async function loadLiveRooms() {
-      try {
-        const { data, error } = await supabase
-          .from('rooms')
-          .select('*, owner:owner_id(name, trust_score)');
-        
-        if (error) throw error;
-        
-        if (data) {
-          const formatted = data.map(r => ({
-            id: r.id,
-            title: r.title,
-            owner: r.owner?.name || 'Landlord',
-            city: r.city,
-            rent: `₹${r.rent}/mo`,
-            docType: 'Aadhaar Card File',
-            image: r.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=300&q=80',
-            trustScore: r.owner?.trust_score || 80,
-            status: r.verified ? 'Approved' : 'Pending Verification'
-          }));
-          setRooms(formatted);
-        }
-        setIsOffline(false);
-      } catch (err) {
-        console.warn("Using offline rooms fallback profiles.", err);
-        setIsOffline(true);
+  async function loadLiveRooms() {
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*, owner:owner_id(name, trust_score)');
+      
+      if (error) throw error;
+      
+      if (data) {
+        const formatted = data.map(r => ({
+          id: r.id,
+          title: r.title,
+          owner: r.owner?.name || 'Landlord',
+          owner_id: r.owner_id,
+          city: r.city,
+          rent: `₹${r.rent}/mo`,
+          docType: 'Aadhaar Card File',
+          image: r.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=300&q=80',
+          trustScore: r.owner?.trust_score || 80,
+          status: r.verified ? 'Approved' : 'Pending Verification'
+        }));
+        setRooms(formatted);
       }
+      setIsOffline(false);
+    } catch (err) {
+      console.warn("Using offline rooms fallback profiles.", err);
+      setIsOffline(true);
     }
+  }
+
+  useEffect(() => {
     loadLiveRooms();
+
+    // Subscribe to realtime rooms table changes
+    const channel = supabase
+      .channel('room-listings-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
+        loadLiveRooms();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleAction = async (id, newStatus, message) => {
@@ -62,6 +76,51 @@ export default function RoomApprovals() {
     } catch (err) {
       console.error("Supabase update failed:", err);
       alert(`Error: Failed to save changes to database. ${err.message || err}`);
+    }
+  };
+
+  const handleDeleteRoom = async (id, title, ownerId) => {
+    const reason = prompt(`Enter the reason for deleting the listing "${title}":`);
+    if (reason === null) return; // Cancelled
+    if (!reason.trim()) {
+      alert("A deletion reason is required.");
+      return;
+    }
+
+    if (isOffline) {
+      setRooms(prev => prev.filter(room => room.id !== id));
+      setNotification(`Mock Deleted room: "${title}"`);
+      setTimeout(() => setNotification(''), 4000);
+      return;
+    }
+
+    try {
+      // 1. Send notification to owner first
+      if (ownerId) {
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: ownerId,
+            type: 'room_deleted',
+            title: '🏢 Room Listing Deleted by Admin',
+            message: `Your room listing "${title}" was deleted by CampusStay Admin. Reason: ${reason}`
+          });
+        if (notifError) console.warn("Failed to notify owner:", notifError);
+      }
+
+      // 2. Perform room deletion
+      const { error } = await supabase
+        .from('rooms')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setNotification(`Successfully deleted listing "${title}" and notified the owner.`);
+      setTimeout(() => setNotification(''), 4000);
+    } catch (err) {
+      console.error("Supabase delete failed:", err);
+      alert(`Failed to delete room listing: ${err.message || err}`);
     }
   };
 
@@ -191,27 +250,43 @@ export default function RoomApprovals() {
                 </td>
 
                 <td style={{ padding: '18px 12px', textAlign: 'right' }}>
-                  {room.status === 'Pending Verification' ? (
-                    <div style={{ display: 'inline-flex', gap: '8px' }}>
-                      <button 
-                        id={`reject-${room.id}`}
-                        className="secondary" 
-                        onClick={() => handleAction(room.id, 'Rejected', `Rejected property listing ${room.id}. Owner notified.`)}
-                        style={{ padding: '8px 14px', fontSize: '12px' }}
-                      >
-                        Reject
-                      </button>
-                      <button 
-                        id={`approve-${room.id}`}
-                        onClick={() => handleAction(room.id, 'Approved', `Approved property listing ${room.id}. Now visible on Student feeds.`)}
-                        style={{ padding: '8px 14px', fontSize: '12px' }}
-                      >
-                        Approve
-                      </button>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-dark)' }}>Reviewed</span>
-                  )}
+                  <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                    {room.status === 'Pending Verification' ? (
+                      <>
+                        <button 
+                          id={`reject-${room.id}`}
+                          className="secondary" 
+                          onClick={() => handleAction(room.id, 'Rejected', `Rejected property listing ${room.id}. Owner notified.`)}
+                          style={{ padding: '8px 14px', fontSize: '12px' }}
+                        >
+                          Reject
+                        </button>
+                        <button 
+                          id={`approve-${room.id}`}
+                          onClick={() => handleAction(room.id, 'Approved', `Approved property listing ${room.id}. Now visible on Student feeds.`)}
+                          style={{ padding: '8px 14px', fontSize: '12px' }}
+                        >
+                          Approve
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px' }}>Reviewed</span>
+                    )}
+                    <button 
+                      id={`delete-${room.id}`}
+                      className="secondary" 
+                      onClick={() => handleDeleteRoom(room.id, room.title, room.owner_id)}
+                      style={{ 
+                        padding: '8px 14px', 
+                        fontSize: '12px', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                        borderColor: 'var(--danger)', 
+                        color: 'var(--danger)' 
+                      }}
+                    >
+                      Delete Listing
+                    </button>
+                  </div>
                 </td>
 
               </tr>

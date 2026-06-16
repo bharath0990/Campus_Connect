@@ -1,14 +1,144 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../App';
 
 export default function GoToMarketStrategy() {
   const [selectedPhase, setSelectedPhase] = useState(0);
+  const [citiesData, setCitiesData] = useState([]);
+  const [summary, setSummary] = useState({ cities: 4, students: 0, listings: 0 });
+  const [isOffline, setIsOffline] = useState(false);
 
-  const targetCities = [
-    { name: 'Bangalore', colleges: 'IISc, RV College, Christ University, PES', status: 'Active', students: '2,400+', listings: '180+', emoji: '🏙️', progress: 78 },
-    { name: 'Delhi NCR', colleges: 'IIT Delhi, DU, JNU, Amity', status: 'Active', students: '1,800+', listings: '140+', emoji: '🏛️', progress: 65 },
-    { name: 'Mumbai', colleges: 'IIT Bombay, NMIMS, Xavier\'s, TISS', status: 'Launching', students: '800+', listings: '60+', emoji: '🌊', progress: 35 },
-    { name: 'Hyderabad', colleges: 'IIIT-H, Osmania, ISB, BITS Pilani', status: 'Planned', students: '200+', listings: '20+', emoji: '🕌', progress: 15 },
-  ];
+  async function fetchLiveCityStats() {
+    try {
+      // Fetch rooms
+      const { data: roomsData, error: rErr } = await supabase
+        .from('rooms')
+        .select('id, city');
+      if (rErr) throw rErr;
+
+      // Fetch bookings (Active)
+      const { data: bookingsData, error: bErr } = await supabase
+        .from('bookings')
+        .select('id, room_id')
+        .eq('status', 'Active');
+      if (bErr) throw bErr;
+
+      // Baseline targets
+      const baseCities = [
+        { name: 'Bangalore', colleges: 'IISc, RV College, Christ University, PES', status: 'Active', emoji: '🏙️', targetListings: 180, defaultStudents: 2400 },
+        { name: 'Delhi NCR', colleges: 'IIT Delhi, DU, JNU, Amity', status: 'Active', emoji: '🏛️', targetListings: 140, defaultStudents: 1800 },
+        { name: 'Mumbai', colleges: 'IIT Bombay, NMIMS, Xavier\'s, TISS', status: 'Launching', emoji: '🌊', targetListings: 60, defaultStudents: 800 },
+        { name: 'Hyderabad', colleges: 'IIIT-H, Osmania, ISB, BITS Pilani', status: 'Planned', emoji: '🕌', targetListings: 20, defaultStudents: 200 }
+      ];
+
+      // Process actual counts from database
+      const cityRoomsMap = {};
+      const cityBookingsMap = {};
+
+      roomsData?.forEach(r => {
+        if (!r.city) return;
+        const cName = r.city.toLowerCase().trim();
+        cityRoomsMap[cName] = (cityRoomsMap[cName] || 0) + 1;
+      });
+
+      bookingsData?.forEach(b => {
+        const room = roomsData?.find(r => r.id === b.room_id);
+        if (room && room.city) {
+          const cName = room.city.toLowerCase().trim();
+          cityBookingsMap[cName] = (cityBookingsMap[cName] || 0) + 1;
+        }
+      });
+
+      // Merge baseline cities with actual data, and add new cities from DB if any
+      const processedCities = [];
+      const seenProcessed = new Set();
+
+      // 1. Process base list
+      baseCities.forEach(base => {
+        const key = base.name.toLowerCase();
+        seenProcessed.add(key);
+
+        const dbListings = cityRoomsMap[key] || 0;
+        const dbStudents = cityBookingsMap[key] || 0;
+
+        processedCities.push({
+          name: base.name,
+          colleges: base.colleges,
+          status: dbListings > 0 ? 'Active' : base.status,
+          students: `${dbStudents} active`,
+          listings: `${dbListings} listed`,
+          emoji: base.emoji,
+          progress: Math.min(100, Math.round((dbListings / base.targetListings) * 100)) || 0,
+          rawListings: dbListings,
+          rawStudents: dbStudents
+        });
+      });
+
+      // 2. Add any other cities from DB not in baseline
+      Object.keys(cityRoomsMap).forEach(key => {
+        if (!seenProcessed.has(key)) {
+          const originalCityName = roomsData.find(r => r.city && r.city.toLowerCase().trim() === key)?.city || key;
+          const dbListings = cityRoomsMap[key];
+          const dbStudents = cityBookingsMap[key] || 0;
+          const target = 50; 
+          const progressVal = Math.min(100, Math.round((dbListings / target) * 100));
+
+          processedCities.push({
+            name: originalCityName,
+            colleges: 'Local Student PGs & Hostels',
+            status: 'Active',
+            students: `${dbStudents} active`,
+            listings: `${dbListings} listed`,
+            emoji: '📍',
+            progress: progressVal,
+            rawListings: dbListings,
+            rawStudents: dbStudents
+          });
+        }
+      });
+
+      const totalRooms = roomsData?.length || 0;
+      const totalActiveStudents = bookingsData?.length || 0;
+      const activeCitiesCount = processedCities.filter(c => c.rawListings > 0).length;
+
+      setCitiesData(processedCities);
+      setSummary({
+        cities: activeCitiesCount || baseCities.length,
+        students: totalActiveStudents,
+        listings: totalRooms
+      });
+      setIsOffline(false);
+    } catch (err) {
+      console.warn("Using offline GTM fallback city stats.", err);
+      setIsOffline(true);
+      // Mock fallback
+      setCitiesData([
+        { name: 'Bangalore', colleges: 'IISc, RV College, Christ University, PES', status: 'Active', students: '2,400+', listings: '180+', emoji: '🏙️', progress: 78, rawListings: 180 },
+        { name: 'Delhi NCR', colleges: 'IIT Delhi, DU, JNU, Amity', status: 'Active', students: '1,800+', listings: '140+', emoji: '🏛️', progress: 65, rawListings: 140 },
+        { name: 'Mumbai', colleges: 'IIT Bombay, NMIMS, Xavier\'s, TISS', status: 'Launching', students: '800+', listings: '60+', emoji: '🌊', progress: 35, rawListings: 60 },
+        { name: 'Hyderabad', colleges: 'IIIT-H, Osmania, ISB, BITS Pilani', status: 'Planned', students: '200+', listings: '20+', emoji: '🕌', progress: 15, rawListings: 20 },
+      ]);
+      setSummary({ cities: 4, students: 5200, listings: 400 });
+    }
+  }
+
+  useEffect(() => {
+    fetchLiveCityStats();
+
+    // Subscribe to rooms and bookings to update in real-time
+    const roomsChannel = supabase
+      .channel('gtm-strategy-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
+        fetchLiveCityStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetchLiveCityStats();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(roomsChannel);
+    };
+  }, []);
 
   const phases = [
     {
@@ -106,7 +236,24 @@ export default function GoToMarketStrategy() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      
+      {isOffline && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid #ef4444',
+          color: 'var(--text-primary)',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '13px',
+          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <span>⚠️</span>
+          <span>Operating in Offline Fallback Mode. Supabase connection timed out. Showing mock city data.</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="glass" style={{ padding: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -119,25 +266,25 @@ export default function GoToMarketStrategy() {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <div className="glass" style={{ padding: '12px 20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Target Cities</span>
-            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--primary)' }}>4</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Active Cities</span>
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--primary)' }}>{summary.cities}</span>
           </div>
           <div className="glass" style={{ padding: '12px 20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Total Students</span>
-            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--accent)' }}>5,200+</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Active Tenants</span>
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--accent)' }}>{summary.students}</span>
           </div>
           <div className="glass" style={{ padding: '12px 20px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Listings</span>
-            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--secondary)' }}>400+</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Total Listings</span>
+            <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--secondary)' }}>{summary.listings}</span>
           </div>
         </div>
       </div>
 
       {/* Target Cities Grid */}
       <div>
-        <h3 style={{ fontSize: '17px', marginBottom: '16px', color: 'var(--text-primary)' }}>🎯 Target Cities — Hyperlocal Expansion</h3>
+        <h3 style={{ fontSize: '17px', marginBottom: '16px', color: 'var(--text-primary)' }}>🎯 Live City Statistics — Market Penetration</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-          {targetCities.map((city, idx) => (
+          {citiesData.map((city, idx) => (
             <div key={idx} className="glass glass-hover" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: '-5px', right: '-5px', fontSize: '60px', opacity: '0.06', pointerEvents: 'none' }}>
                 {city.emoji}
@@ -149,16 +296,13 @@ export default function GoToMarketStrategy() {
                   fontWeight: 'bold',
                   padding: '3px 10px',
                   borderRadius: '20px',
-                  background: city.status === 'Active' ? 'rgba(16, 185, 129, 0.15)' :
-                              city.status === 'Launching' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                  color: city.status === 'Active' ? 'var(--accent)' :
-                         city.status === 'Launching' ? 'var(--primary)' : 'var(--warning)',
+                  background: city.rawListings > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  color: city.rawListings > 0 ? 'var(--accent)' : 'var(--warning)',
                   border: `1px solid ${
-                    city.status === 'Active' ? 'rgba(16, 185, 129, 0.3)' :
-                    city.status === 'Launching' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(245, 158, 11, 0.3)'
+                    city.rawListings > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'
                   }`
                 }}>
-                  {city.status}
+                  {city.rawListings > 0 ? 'Active' : 'Planned'}
                 </span>
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px' }}>{city.colleges}</p>
@@ -170,14 +314,13 @@ export default function GoToMarketStrategy() {
                 <div style={{
                   width: `${city.progress}%`,
                   height: '100%',
-                  background: city.status === 'Active' ? 'var(--accent)' :
-                              city.status === 'Launching' ? 'var(--primary)' : 'var(--warning)',
+                  background: city.rawListings > 0 ? 'var(--accent)' : 'var(--warning)',
                   borderRadius: '3px',
                   transition: 'width 0.5s ease'
                 }} />
               </div>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                {city.progress}% market penetration
+                {city.progress}% target achieved
               </span>
             </div>
           ))}

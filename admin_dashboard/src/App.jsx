@@ -5,6 +5,7 @@ import DashboardOverview from './views/DashboardOverview';
 import RoomApprovals from './views/RoomApprovals';
 import ComplaintsList from './views/ComplaintsList';
 import GoToMarketStrategy from './views/GoToMarketStrategy';
+import UserManagement from './views/UserManagement';
 
 // Supabase Connection initialization
 const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || 'https://qynghqgbitcbczvfervg.supabase.co';
@@ -97,6 +98,14 @@ export default function App() {
           >
             🚀 GTM Strategy
           </button>
+          <button 
+            id="tab-users"
+            className={activeTab === 'users' ? '' : 'secondary'}
+            onClick={() => setActiveTab('users')}
+            style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', padding: '14px' }}
+          >
+            👥 User Directory
+          </button>
         </nav>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -134,6 +143,7 @@ export default function App() {
               {activeTab === 'approvals' && 'Room Listings Verification'}
               {activeTab === 'complaints' && 'Security Disputes & SLA Monitor'}
               {activeTab === 'gtm' && 'Go-To-Market Strategy'}
+              {activeTab === 'users' && 'System User Directory'}
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
               Logged in from Terminal: Real-time PostgreSQL client streams active.
@@ -151,6 +161,7 @@ export default function App() {
           {activeTab === 'approvals' && <RoomApprovals />}
           {activeTab === 'complaints' && <ComplaintsList />}
           {activeTab === 'gtm' && <GoToMarketStrategy />}
+          {activeTab === 'users' && <UserManagement />}
         </div>
       </main>
     </div>
