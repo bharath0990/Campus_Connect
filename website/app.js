@@ -787,83 +787,87 @@ async function handleSignUp(e) {
 
 async function handleSignIn(e) {
   e.preventDefault();
-  const email = document.getElementById('login-email').value;
+  const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
-  const role = document.querySelector('#login-role-selector button.active').dataset.role;
+  const role = document.querySelector('#login-role-selector button.active')?.dataset.role || 'student';
 
   const signInSubmitBtn = e.target.querySelector('button[type="submit"]');
+  const resetBtn = () => {
+    signInSubmitBtn.disabled = false;
+    signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+  };
+
   signInSubmitBtn.disabled = true;
   signInSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing In...';
 
-  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  // Safety timeout — if nothing happens in 12s, reset
+  const timeoutId = setTimeout(() => {
+    resetBtn();
+    alert('Sign in timed out. Please check your internet connection and try again.');
+  }, 12000);
 
-  if (error) {
-    let msg = error.message;
-    if (msg.includes('Invalid login')) msg = 'Incorrect email or password. Please try again.';
-    if (msg.includes('Email not confirmed')) msg = 'Please confirm your email address first. Check your inbox for the confirmation link.';
-    alert(`Sign In Error: ${msg}`);
-    signInSubmitBtn.disabled = false;
-    signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
-    return;
-  }
-
-  // Fetch profile — auto-create if missing (first login after email confirmation)
-  let profile = null;
   try {
-    const { data: profileData, error: dbErr } = await db.from('users').select('*').eq('id', data.user.id).single();
-    if (!dbErr && profileData) {
-      profile = profileData;
-    }
-  } catch (err) {
-    console.warn('Profile fetch error:', err);
-  }
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    clearTimeout(timeoutId);
 
-  // Auto-create profile row if missing (handles users who signed up before profile sync was in place)
-  if (!profile && data.user) {
-    const uid = data.user.id;
-    const meta = data.user.user_metadata || {};
-    const name = meta.name || meta.full_name || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const username = email.split('@')[0] + '_' + uid.substring(0, 5);
-    try {
-      await db.from('users').upsert({
-        id: uid, name, email, phone: '', role,
-        trust_score: 85, verified: false, username
-      });
-      const { data: newProfile } = await db.from('users').select('*').eq('id', uid).single();
-      profile = newProfile;
-    } catch (upsertErr) {
-      console.warn('Profile upsert failed:', upsertErr);
+    if (error) {
+      let msg = error.message || 'Unknown error';
+      if (msg.toLowerCase().includes('invalid login') || msg.toLowerCase().includes('invalid credentials')) {
+        msg = 'Incorrect email or password. Please try again.';
+      } else if (msg.toLowerCase().includes('email not confirmed')) {
+        msg = 'Please confirm your email first. Check your inbox for a verification email from Supabase.';
+      } else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+        msg = 'Network error. Please check your connection.';
+      }
+      resetBtn();
+      alert('Sign In Error: ' + msg);
+      return;
     }
-  }
 
-  // Fallback: use auth session data directly so user can still access the app
-  if (!profile) {
+    if (!data || !data.user) {
+      resetBtn();
+      alert('Sign in failed: No user session returned. Please try again.');
+      return;
+    }
+
+    // Build profile directly from auth session (no extra DB call needed — avoids RLS issues)
+    // onAuthStateChange will fire and sync the full profile from DB in the background
     const meta = data.user.user_metadata || {};
-    profile = {
+    const profileName = meta.name || meta.full_name || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    currentUserProfile = {
       id: data.user.id,
-      name: meta.name || meta.full_name || email.split('@')[0],
-      email: data.user.email,
-      phone: '', role,
-      trust_score: 85, verified: false,
-      profile_pic: meta.avatar_url || '',
-      preferences: { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' }
+      name: profileName,
+      email: data.user.email || email,
+      phone: meta.phone || '',
+      role: meta.role || role,
+      trust_score: 85,
+      verified: meta.verified || false,
+      profile_pic: meta.avatar_url || meta.picture || 'https://api.dicebear.com/7.x/adventurer/png?seed=' + data.user.id,
+      preferences: meta.preferences || { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' }
     };
-  }
 
-  // Role mismatch check
-  if (profile.role && profile.role !== role) {
-    alert(`Role mismatch: You selected "${role}" but your account is registered as "${profile.role}". Please select the correct account type.`);
-    await db.auth.signOut();
-    signInSubmitBtn.disabled = false;
-    signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
-    return;
-  }
+    // Now try to get the real DB profile in background (non-blocking)
+    db.from('users').select('*').eq('id', data.user.id).single()
+      .then(({ data: dbProfile }) => {
+        if (dbProfile) {
+          currentUserProfile = dbProfile;
+          if (navUsername) navUsername.textContent = dbProfile.name;
+          const avatarEl = document.getElementById('dashboard-user-avatar');
+          if (avatarEl) avatarEl.src = dbProfile.profile_pic || currentUserProfile.profile_pic;
+        }
+      }).catch(() => {});
 
-  currentUserProfile = profile;
-  closeAuthModal();
-  syncUIForLoggedInUser();
-  signInSubmitBtn.disabled = false;
-  signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+    resetBtn();
+    closeAuthModal();
+    syncUIForLoggedInUser();
+
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error('Sign in exception:', err);
+    resetBtn();
+    alert('Sign in failed: ' + (err.message || 'Unexpected error. Please try again.'));
+  }
 }
 
 async function handleSignOut() {
