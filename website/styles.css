@@ -1301,11 +1301,20 @@ h1, h2, h3, h4 {
   overflow: visible;
 }
 
-/* Fix all inner view containers to be full-width and not overflow */
+/* Fix all inner view containers to be full-width */
 .dashboard-main-content > div,
 .dashboard-main-content > section {
   width: 100%;
   box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Chat fills full panel edge-to-edge by overriding parent padding */
+.dashboard-main-content .chat-window {
+  margin: -28px;
+  width: calc(100% + 56px);
+  border-radius: 16px;
+  max-width: none;
 }
 
 
@@ -1422,10 +1431,14 @@ h1, h2, h3, h4 {
 /* Two-pane chat layout: thread list + messages */
 .chat-pane-wrapper {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px 1fr;
   height: 100%;
   overflow: hidden;
   width: 100%;
+}
+
+.chat-pane-wrapper > * {
+  min-width: 0;
 }
 
 .chat-thread-list {
@@ -1435,6 +1448,7 @@ h1, h2, h3, h4 {
   height: 100%;
   overflow-y: auto;
   background: #fff;
+  min-width: 0;
 }
 
 .chat-thread-item {
@@ -1442,6 +1456,7 @@ h1, h2, h3, h4 {
   cursor: pointer;
   border-bottom: 1px solid rgba(0,0,0,0.07);
   transition: var(--transition);
+  overflow: hidden;
 }
 
 .chat-thread-item:hover, .chat-thread-item.active {
@@ -1452,6 +1467,9 @@ h1, h2, h3, h4 {
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-thread-last {
