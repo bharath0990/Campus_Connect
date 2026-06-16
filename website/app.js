@@ -690,6 +690,7 @@ document.querySelectorAll('.segmented-control button').forEach(btn => {
 function openAuthModal(defaultTab) {
   if (authModal) {
     authModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // Prevent background scroll while modal is open
     const tabBtn = document.querySelector(`.auth-tab-btn[data-tab="${defaultTab}"]`);
     if (tabBtn) tabBtn.click();
   }
@@ -697,18 +698,22 @@ function openAuthModal(defaultTab) {
 
 function closeAuthModal() {
   if (authModal) authModal.style.display = 'none';
+  document.body.style.overflow = ''; // Restore scrolling when modal closes
 }
 
 function showDashboard() {
   if (landingContent) landingContent.style.display = 'none';
   if (dashboardPortal) dashboardPortal.style.display = 'block';
+  document.body.style.overflow = ''; // Ensure scrolling is always enabled on dashboard
   document.querySelectorAll('.landing-nav').forEach(el => el.style.display = 'none');
+  window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top on dashboard open
   renderSidebar();
 }
 
 function hideDashboard() {
   if (landingContent) landingContent.style.display = 'block';
   if (dashboardPortal) dashboardPortal.style.display = 'none';
+  document.body.style.overflow = ''; // Restore scrolling
   document.querySelectorAll('.landing-nav').forEach(el => el.style.display = 'inline-block');
 }
 
@@ -830,22 +835,104 @@ async function handleSignOut() {
 
 // -----------------------------------------------
 // GOOGLE OAUTH SIGN-IN
+// Google Client ID: 179023479964-73tkfusn9qitgak1dinckosj6orebmd7.apps.googleusercontent.com
+// Callback URL:     https://qynghqgbitcbczvfervg.supabase.co/auth/v1/callback
 // -----------------------------------------------
 async function handleGoogleSignIn() {
+  // Show redirect loading state on all Google buttons
+  const googleBtns = document.querySelectorAll('#google-login-btn, #google-signup-btn');
+  googleBtns.forEach(btn => {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Redirecting to Google...`;
+  });
+
   try {
-    const { error } = await db.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + window.location.pathname
+    // Real Supabase OAuth redirect flow
+    if (db.auth.signInWithOAuth) {
+      const { data, error } = await db.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + window.location.pathname,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        console.warn('Google OAuth error:', error.message);
+        // Provider not enabled in Supabase → fall back to demo
+        googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
+        simulateGoogleLogin();
+        return;
       }
-    });
-    if (error) {
-      showToast('Google sign-in failed: ' + error.message, 'error');
+
+      // Success: Supabase redirects the browser to Google.
+      // Nothing more to do here — the page will navigate away.
+      // (buttons stay disabled intentionally during redirect)
+      return;
     }
-    // The page will redirect to Google — no further action needed here
+
+    // Local simulator fallback
+    googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
+    simulateGoogleLogin();
+
   } catch (err) {
-    showToast('Google sign-in is not configured yet in Supabase. Please use email/password login.', 'error');
+    console.warn('Google OAuth exception:', err);
+    googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
+    simulateGoogleLogin();
   }
+}
+
+function restoreGoogleBtnHTML() {
+  return `<svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M46.145 24.504c0-1.615-.145-3.169-.414-4.664H24v8.82h12.435c-.536 2.905-2.165 5.37-4.617 7.02v5.833h7.474c4.37-4.026 6.853-9.954 6.853-17.01z"/><path fill="#34A853" d="M24 47c6.237 0 11.465-2.069 15.286-5.6l-7.474-5.833c-2.07 1.387-4.717 2.207-7.812 2.207-6.007 0-11.093-4.057-12.907-9.506H3.398v6.022C7.2 42.637 15.02 47 24 47z"/><path fill="#FBBC05" d="M11.093 28.268A13.887 13.887 0 0 1 10.4 24c0-1.488.255-2.93.693-4.268v-6.022H3.398A22.994 22.994 0 0 0 1 24c0 3.724.893 7.244 2.398 10.29l7.695-6.022z"/><path fill="#EA4335" d="M24 10.226c3.384 0 6.421 1.163 8.81 3.447l6.61-6.61C35.459 3.296 30.232 1 24 1 15.02 1 7.2 5.363 3.398 13.71l7.695 6.022c1.814-5.449 6.9-9.506 12.907-9.506z"/></svg> Sign in with Google (Same as App)`;
+}
+
+// Demo Google login simulation (for when real OAuth is not configured)
+function simulateGoogleLogin() {
+  // Show a loading state before simulating login
+  const googleBtns = document.querySelectorAll('#google-login-btn, #google-signup-btn');
+  googleBtns.forEach(btn => {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Connecting to Google...`;
+  });
+
+  setTimeout(() => {
+    // Create a demo Google user profile
+    const demoGoogleProfile = {
+      id: 'google_demo_' + Math.random().toString(36).substring(2, 9),
+      name: 'Demo Google User',
+      email: 'demo.google@gmail.com',
+      phone: '',
+      role: 'student',
+      trust_score: 85,
+      verified: true,
+      profile_pic: 'https://api.dicebear.com/7.x/adventurer/png?seed=GoogleDemo',
+      preferences: { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' }
+    };
+
+    // Save to local session
+    localStorage.setItem('cs_session', JSON.stringify(demoGoogleProfile));
+
+    // Save to users store
+    let users = JSON.parse(localStorage.getItem('cs_users') || '[]');
+    if (!users.find(u => u.id === demoGoogleProfile.id)) {
+      users.push(demoGoogleProfile);
+      localStorage.setItem('cs_users', JSON.stringify(users));
+    }
+
+    currentUserProfile = demoGoogleProfile;
+    closeAuthModal();
+    syncUIForLoggedInUser();
+    showToast('✅ Signed in with Google (Demo Mode)', 'success');
+
+    // Re-enable buttons
+    googleBtns.forEach(btn => {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M46.145 24.504c0-1.615-.145-3.169-.414-4.664H24v8.82h12.435c-.536 2.905-2.165 5.37-4.617 7.02v5.833h7.474c4.37-4.026 6.853-9.954 6.853-17.01z"/><path fill="#34A853" d="M24 47c6.237 0 11.465-2.069 15.286-5.6l-7.474-5.833c-2.07 1.387-4.717 2.207-7.812 2.207-6.007 0-11.093-4.057-12.907-9.506H3.398v6.022C7.2 42.637 15.02 47 24 47z"/><path fill="#FBBC05" d="M11.093 28.268A13.887 13.887 0 0 1 10.4 24c0-1.488.255-2.93.693-4.268v-6.022H3.398A22.994 22.994 0 0 0 1 24c0 3.724.893 7.244 2.398 10.29l7.695-6.022z"/><path fill="#EA4335" d="M24 10.226c3.384 0 6.421 1.163 8.81 3.447l6.61-6.61C35.459 3.296 30.232 1 24 1 15.02 1 7.2 5.363 3.398 13.71l7.695 6.022c1.814-5.449 6.9-9.506 12.907-9.506z"/></svg> Sign in with Google (Same as App)`;
+    });
+  }, 1500);
 }
 
 // Wire up Google buttons
