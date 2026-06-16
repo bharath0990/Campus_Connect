@@ -798,24 +798,61 @@ async function handleSignIn(e) {
   const { data, error } = await db.auth.signInWithPassword({ email, password });
 
   if (error) {
-    alert(`Sign In Error: ${error.message}`);
+    let msg = error.message;
+    if (msg.includes('Invalid login')) msg = 'Incorrect email or password. Please try again.';
+    if (msg.includes('Email not confirmed')) msg = 'Please confirm your email address first. Check your inbox for the confirmation link.';
+    alert(`Sign In Error: ${msg}`);
     signInSubmitBtn.disabled = false;
     signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
     return;
   }
 
-  // Fetch role and verify match
-  const { data: profile, error: dbErr } = await db.from('users').select('*').eq('id', data.user.id).single();
-  if (dbErr || !profile) {
-    alert("Profile sync failure. Please contact administrator.");
-    await db.auth.signOut();
-    signInSubmitBtn.disabled = false;
-    signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
-    return;
+  // Fetch profile — auto-create if missing (first login after email confirmation)
+  let profile = null;
+  try {
+    const { data: profileData, error: dbErr } = await db.from('users').select('*').eq('id', data.user.id).single();
+    if (!dbErr && profileData) {
+      profile = profileData;
+    }
+  } catch (err) {
+    console.warn('Profile fetch error:', err);
   }
 
-  if (profile.role !== role) {
-    alert(`Account role mismatch. You requested ${role} portal, but you are registered as a ${profile.role}.`);
+  // Auto-create profile row if missing (handles users who signed up before profile sync was in place)
+  if (!profile && data.user) {
+    const uid = data.user.id;
+    const meta = data.user.user_metadata || {};
+    const name = meta.name || meta.full_name || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const username = email.split('@')[0] + '_' + uid.substring(0, 5);
+    try {
+      await db.from('users').upsert({
+        id: uid, name, email, phone: '', role,
+        trust_score: 85, verified: false, username
+      });
+      const { data: newProfile } = await db.from('users').select('*').eq('id', uid).single();
+      profile = newProfile;
+    } catch (upsertErr) {
+      console.warn('Profile upsert failed:', upsertErr);
+    }
+  }
+
+  // Fallback: use auth session data directly so user can still access the app
+  if (!profile) {
+    const meta = data.user.user_metadata || {};
+    profile = {
+      id: data.user.id,
+      name: meta.name || meta.full_name || email.split('@')[0],
+      email: data.user.email,
+      phone: '', role,
+      trust_score: 85, verified: false,
+      profile_pic: meta.avatar_url || '',
+      preferences: { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' }
+    };
+  }
+
+  // Role mismatch check
+  if (profile.role && profile.role !== role) {
+    alert(`Role mismatch: You selected "${role}" but your account is registered as "${profile.role}". Please select the correct account type.`);
     await db.auth.signOut();
     signInSubmitBtn.disabled = false;
     signInSubmitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
