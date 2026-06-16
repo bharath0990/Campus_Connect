@@ -551,6 +551,7 @@ function initSimulator() {
         latitude: 15.3911,
         longitude: 73.8782,
         rating: 4.8,
+        max_occupancy: 1,
         images: ['https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'],
         amenities: ['WiFi', 'AC', 'Maid'],
         available: true,
@@ -567,6 +568,7 @@ function initSimulator() {
         latitude: 15.3895,
         longitude: 73.8812,
         rating: 4.6,
+        max_occupancy: 2,
         images: ['https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80'],
         amenities: ['WiFi', 'AC', 'Geyser'],
         available: true,
@@ -583,6 +585,7 @@ function initSimulator() {
         latitude: 18.5074,
         longitude: 73.8077,
         rating: 4.2,
+        max_occupancy: 3,
         images: ['https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=500&q=80'],
         amenities: ['WiFi', 'Maid', 'Parking'],
         available: true,
@@ -590,6 +593,7 @@ function initSimulator() {
         owner_id: 'mock_owner'
       }
     ];
+    // Clear old rooms so max_occupancy is seeded fresh
     localStorage.setItem('cs_rooms', JSON.stringify(rooms));
   }
 
@@ -1056,6 +1060,7 @@ function renderSidebar() {
     { id: 'explore', label: 'Explore Rooms', icon: 'fa-hotel' },
     { id: 'matcher', label: 'Roommate Matcher', icon: 'fa-people-arrows' },
     { id: 'bookings', label: 'Bookings & Split', icon: 'fa-calculator' },
+    { id: 'student-bills', label: 'My Bills', icon: 'fa-file-invoice-dollar' },
     { id: 'tickets', label: 'Maintenance SLA', icon: 'fa-screwdriver-wrench' },
     { id: 'chat', label: 'Real-time Chat', icon: 'fa-comments' },
     { id: 'profile', label: 'My Profile', icon: 'fa-user-gear' }
@@ -1093,6 +1098,7 @@ function renderActiveView(viewId) {
   if (viewId === 'explore') loadExploreView(pane);
   else if (viewId === 'matcher') loadMatcherView(pane);
   else if (viewId === 'bookings') loadBookingsView(pane);
+  else if (viewId === 'student-bills') loadStudentBillsView(pane);
   else if (viewId === 'tickets') loadTicketsView(pane);
   else if (viewId === 'chat') loadChatView(pane);
   else if (viewId === 'profile') loadProfileView(pane);
@@ -1131,17 +1137,36 @@ async function loadExploreView(pane) {
     return;
   }
 
-  // Get student coordinates (fallback to BITS Pilani Goa default if missing)
+  // Check if THIS student already has an active/requested booking
+  const { data: myBookings } = await db.from('bookings').select('*').eq('student_id', currentUserProfile.id);
+  const myActiveBooking = myBookings ? myBookings.find(b => b.status === 'Active' || b.status === 'Requested') : null;
+
+  // Get all confirmed bookings to compute vacancy per room
+  const { data: allBookings } = await db.from('bookings').select('room_id, status');
+  const confirmedBookings = allBookings || [];
+
   const studentLat = 15.3911;
   const studentLng = 73.8782;
 
   let sortedRooms = rooms.map(room => {
     const dist = getDistance(studentLat, studentLng, room.latitude, room.longitude);
-    return { ...room, distance: dist };
+    const occupants = confirmedBookings.filter(b => b.room_id === room.id && (b.status === 'Active' || b.status === 'Confirmed')).length;
+    const maxOcc = room.max_occupancy || 2;
+    const vacancyLeft = Math.max(0, maxOcc - occupants);
+    return { ...room, distance: dist, occupants, vacancyLeft, maxOcc };
   });
 
-  // Sort by distance if calculated
   sortedRooms.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+  const alreadyBookedBanner = myActiveBooking ? `
+    <div style="background: rgba(211,47,47,0.08); border: 1px solid rgba(211,47,47,0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+      <i class="fa-solid fa-circle-exclamation" style="color: var(--primary); font-size: 18px;"></i>
+      <div>
+        <strong style="color: var(--primary);">You already have an active booking.</strong>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0 0;">You must cancel your current booking before requesting a new room.</p>
+      </div>
+    </div>
+  ` : '';
 
   pane.innerHTML = `
     <div class="dashboard-section-header">
@@ -1150,10 +1175,19 @@ async function loadExploreView(pane) {
         <i class="fa-solid fa-location-crosshairs"></i> GPS Sort: Active (Nearby first)
       </span>
     </div>
+    ${alreadyBookedBanner}
     <div class="rooms-grid">
-      ${sortedRooms.map(room => `
-        <div class="room-card">
-          <img src="${room.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'}" class="room-card-image" alt="Room Image">
+      ${sortedRooms.map(room => {
+        const isFull = room.vacancyLeft === 0;
+        const vacancyLabel = isFull
+          ? `<span style="background: rgba(211,47,47,0.12); color: var(--primary); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(211,47,47,0.25);"><i class="fa-solid fa-lock"></i> FULL</span>`
+          : `<span style="background: rgba(46,125,50,0.10); color: var(--green); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(46,125,50,0.25);"><i class="fa-solid fa-door-open"></i> ${room.vacancyLeft} spot${room.vacancyLeft !== 1 ? 's' : ''} left</span>`;
+        return `
+        <div class="room-card" style="${isFull ? 'opacity:0.75;' : ''}">
+          <div style="position: relative;">
+            <img src="${room.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'}" class="room-card-image" alt="Room Image">
+            ${isFull ? '<div style="position:absolute;top:10px;right:10px;background:rgba(211,47,47,0.9);color:#fff;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;"><i class="fa-solid fa-ban"></i> FULLY BOOKED</div>' : ''}
+          </div>
           <div class="room-card-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <span class="tag" style="background: rgba(255, 75, 92, 0.08); color: var(--primary);">${room.city}</span>
@@ -1161,28 +1195,32 @@ async function loadExploreView(pane) {
             </div>
             <h3 class="room-card-title">${room.title}</h3>
             <p class="room-card-address"><i class="fa-solid fa-map-pin"></i> ${room.detailed_address}</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              ${vacancyLabel}
+              <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-users"></i> ${room.occupants}/${room.maxOcc} occupied</span>
+            </div>
             <div class="room-card-meta">
               <span class="room-card-rent">₹${room.rent.toLocaleString('en-IN')}<span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">/mo</span></span>
               ${room.distance !== null ? `<span style="font-size: 12px; color: var(--cyan);"><i class="fa-solid fa-person-walking"></i> ${room.distance} km away</span>` : ''}
             </div>
-            <button class="btn btn-secondary detail-btn" data-id="${room.id}" style="width: 100%; margin-top: 15px; justify-content: center; font-size: 13px;">
-              View Walking Path & Details
+            <button class="btn btn-secondary detail-btn" data-id="${room.id}" style="width: 100%; margin-top: 15px; justify-content: center; font-size: 13px;" ${isFull ? 'disabled style="width:100%;margin-top:15px;justify-content:center;font-size:13px;opacity:0.5;cursor:not-allowed;"' : ''}>
+              ${isFull ? '<i class="fa-solid fa-ban"></i> Room Fully Booked' : 'View Walking Path & Details'}
             </button>
           </div>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   `;
 
-  document.querySelectorAll('.detail-btn').forEach(btn => {
+  document.querySelectorAll('.detail-btn:not([disabled])').forEach(btn => {
     btn.addEventListener('click', () => {
       const room = sortedRooms.find(r => r.id === btn.dataset.id);
-      if (room) showRoomDetail(pane, room, studentLat, studentLng);
+      if (room) showRoomDetail(pane, room, studentLat, studentLng, !!myActiveBooking);
     });
   });
 }
 
-function showRoomDetail(pane, room, studentLat, studentLng) {
+function showRoomDetail(pane, room, studentLat, studentLng, alreadyBooked = false) {
   pane.innerHTML = `
     <div class="detail-view-container">
       <div class="detail-header-row">
@@ -1223,9 +1261,15 @@ function showRoomDetail(pane, room, studentLat, studentLng) {
             <div id="routing-map" class="detail-map-box"></div>
             
             <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
-              <button class="btn btn-primary" id="book-room-btn" style="justify-content: center; width: 100%;">
-                <i class="fa-solid fa-bolt"></i> Book Co-Living Flat
-              </button>
+              ${alreadyBooked
+                ? `<button class="btn" disabled style="justify-content: center; width: 100%; background: rgba(211,47,47,0.1); color: var(--primary); border: 1px solid rgba(211,47,47,0.3); cursor: not-allowed;">
+                    <i class="fa-solid fa-circle-exclamation"></i> Already Have a Booking
+                   </button>
+                   <p style="font-size: 11px; color: var(--text-muted); text-align:center; margin:0;">Cancel your current booking first to request a new room.</p>`
+                : `<button class="btn btn-primary" id="book-room-btn" style="justify-content: center; width: 100%;">
+                    <i class="fa-solid fa-bolt"></i> Book Co-Living Flat
+                   </button>`
+              }
               <button class="btn btn-secondary" id="chat-landlord-btn" style="justify-content: center; width: 100%;">
                 <i class="fa-solid fa-comment-dots"></i> Chat with Landlord
               </button>
@@ -1264,30 +1308,53 @@ function showRoomDetail(pane, room, studentLat, studentLng) {
     }
   }, 100);
 
-  // Book Room button
+  // Book Room button (only rendered if student has no active booking)
   const bookBtn = document.getElementById('book-room-btn');
-  bookBtn.addEventListener('click', async () => {
-    bookBtn.disabled = true;
-    bookBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Booking...';
+  if (bookBtn) {
+    bookBtn.addEventListener('click', async () => {
+      bookBtn.disabled = true;
+      bookBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Booking...';
 
-    const { data: booking, error } = await db.from('bookings').insert({
-      student_id: currentUserProfile.id,
-      room_id: room.id,
-      owner_id: room.owner_id,
-      status: 'Requested',
-      move_in_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      rent: room.rent
-    }).select().single();
+      // Double-check: prevent booking if student already has an active booking
+      const { data: existingBookings } = await db.from('bookings').select('*').eq('student_id', currentUserProfile.id);
+      const hasActive = existingBookings && existingBookings.find(b => b.status === 'Active' || b.status === 'Requested');
+      if (hasActive) {
+        showToast('You already have an active booking. Cancel it first before booking a new room.', 'error');
+        bookBtn.disabled = false;
+        bookBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Book Co-Living Flat';
+        return;
+      }
 
-    if (error) {
-      alert(`Booking Error: ${error.message}`);
-      bookBtn.disabled = false;
-      bookBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Book Co-Living Flat';
-    } else {
-      alert("Booking Request submitted successfully to property owner!");
-      bookBtn.innerHTML = '<i class="fa-solid fa-circle-check" style="color: var(--green);"></i> Requested';
-    }
-  });
+      // Check room vacancy
+      const { data: roomBookings } = await db.from('bookings').select('id').eq('room_id', room.id);
+      const currentOccupants = roomBookings ? roomBookings.filter(b => b.status === 'Active' || b.status === 'Confirmed').length : 0;
+      const maxOcc = room.max_occupancy || 2;
+      if (currentOccupants >= maxOcc) {
+        showToast('This room is fully booked. Please choose another room.', 'error');
+        bookBtn.disabled = false;
+        bookBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Book Co-Living Flat';
+        return;
+      }
+
+      const { data: booking, error } = await db.from('bookings').insert({
+        student_id: currentUserProfile.id,
+        room_id: room.id,
+        owner_id: room.owner_id,
+        status: 'Requested',
+        move_in_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        rent: room.rent
+      }).select().single();
+
+      if (error) {
+        showToast(`Booking Error: ${error.message}`, 'error');
+        bookBtn.disabled = false;
+        bookBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Book Co-Living Flat';
+      } else {
+        showToast('Booking request submitted successfully! Waiting for landlord approval.', 'success');
+        bookBtn.innerHTML = '<i class="fa-solid fa-circle-check" style="color: var(--green);"></i> Requested — Pending Approval';
+      }
+    });
+  }
 
   // Chat Landlord
   document.getElementById('chat-landlord-btn').addEventListener('click', async () => {
@@ -1607,6 +1674,241 @@ async function loadBookingsView(pane) {
 
     }, 1500);
   });
+}
+
+// 6.3b MY BILLS VIEW — Student sees actual bills split by real confirmed occupants only
+async function loadStudentBillsView(pane) {
+  // Get student's active booking
+  const { data: bookings } = await db.from('bookings').select('*, rooms(*)').eq('student_id', currentUserProfile.id);
+  const activeBooking = bookings ? (bookings.find(b => b.status === 'Active') || bookings.find(b => b.status === 'Confirmed') || bookings.find(b => b.status === 'Requested')) : null;
+
+  if (!activeBooking) {
+    pane.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px;">
+        <i class="fa-solid fa-file-invoice-dollar fa-3x" style="color: var(--text-muted); margin-bottom: 20px;"></i>
+        <h3>No Active Booking Found</h3>
+        <p style="color: var(--text-muted); margin-top: 8px;">You need an active room booking to view bills. Explore listings and book a room first.</p>
+        <button class="btn btn-primary" style="margin-top: 20px;" onclick="currentActiveTab='explore'; renderSidebar();">
+          <i class="fa-solid fa-hotel"></i> Explore Rooms
+        </button>
+      </div>`;
+    return;
+  }
+
+  if (activeBooking.status === 'Requested') {
+    pane.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px;">
+        <i class="fa-solid fa-hourglass-half fa-3x" style="color: var(--cyan); margin-bottom: 20px;"></i>
+        <h3>Booking Pending Approval</h3>
+        <p style="color: var(--text-muted); margin-top: 8px;">Bills will be available once your landlord approves your booking for <strong>${activeBooking.rooms?.title || 'your selected room'}</strong>.</p>
+      </div>`;
+    return;
+  }
+
+  // Count ONLY real confirmed/active students in this room (no bots, no mock data)
+  const { data: roomOccupants } = await db.from('bookings').select('student_id, status').eq('room_id', activeBooking.room_id);
+  const confirmedOccupants = roomOccupants ? roomOccupants.filter(b => b.status === 'Active' || b.status === 'Confirmed') : [];
+  const occupantCount = Math.max(1, confirmedOccupants.length);
+
+  // Get latest landlord bills for this room
+  const { data: bills } = await db.from('room_bills').select('*').eq('room_id', activeBooking.room_id).order('created_at', { ascending: false }).limit(1);
+  const latestBill = bills && bills.length > 0 ? bills[0] : {
+    electricity_bill: 1200,
+    maid_bill: 0,
+    wifi_bill: 900,
+    billing_month: new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+  };
+
+  // Accurate split — divided by ACTUAL occupant count only
+  const rent = activeBooking.rent || 0;
+  const electricity = latestBill.electricity_bill || 0;
+  const maid = latestBill.maid_bill || 0;
+  const wifi = latestBill.wifi_bill || 0;
+
+  const rentSplit = Math.round(rent / occupantCount);
+  const electricitySplit = Math.round(electricity / occupantCount);
+  const maidSplit = Math.round(maid / occupantCount);
+  const wifiSplit = Math.round(wifi / occupantCount);
+  const totalShare = rentSplit + electricitySplit + maidSplit + wifiSplit;
+
+  // Payment history
+  const { data: payments } = await db.from('payments').select('*').eq('student_id', currentUserProfile.id).order('created_at', { ascending: false });
+  const paymentHistory = payments || [];
+
+  pane.innerHTML = `
+    <div class="dashboard-section-header">
+      <h2><i class="fa-solid fa-file-invoice-dollar" style="color: var(--primary);"></i> My Monthly Bills</h2>
+      <span class="badge" style="background: rgba(46,125,50,0.1); border-color: var(--green); color: var(--green);">
+        <i class="fa-solid fa-users"></i> ${occupantCount} Real Member${occupantCount !== 1 ? 's' : ''} in Room
+      </span>
+    </div>
+
+    <!-- Room Info Banner -->
+    <div class="glass-card" style="padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-weight: 700; font-size: 16px;">${activeBooking.rooms?.title || 'Your Room'}</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;"><i class="fa-solid fa-map-pin"></i> ${activeBooking.rooms?.detailed_address || ''}</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 11px; color: var(--text-muted);">Billing Month</div>
+        <div style="font-weight: 700; color: var(--cyan);">${latestBill.billing_month}</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 28px; margin-bottom: 28px;">
+      <!-- Bill Breakdown -->
+      <div class="glass-card" style="padding: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h3 style="font-size: 17px;">Bill Breakdown</h3>
+          <span style="font-size: 12px; background: rgba(211,47,47,0.08); color: var(--primary); border: 1px solid rgba(211,47,47,0.2); padding: 4px 12px; border-radius: 20px; font-weight: 700;">
+            Split by ${occupantCount} member${occupantCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-glass);">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;"><i class="fa-solid fa-house" style="color: var(--primary); margin-right: 8px;"></i> Room Rent</div>
+              <div style="font-size: 11px; color: var(--text-muted);">₹${rent.toLocaleString('en-IN')} ÷ ${occupantCount}</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">₹${rentSplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-glass);">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;"><i class="fa-solid fa-bolt" style="color: #f59e0b; margin-right: 8px;"></i> Electricity Bill</div>
+              <div style="font-size: 11px; color: var(--text-muted);">₹${electricity.toLocaleString('en-IN')} ÷ ${occupantCount}</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">₹${electricitySplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-glass);">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;"><i class="fa-solid fa-broom" style="color: #8b5cf6; margin-right: 8px;"></i> Maid Services</div>
+              <div style="font-size: 11px; color: var(--text-muted);">₹${maid.toLocaleString('en-IN')} ÷ ${occupantCount}</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">₹${maidSplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-glass);">
+            <div>
+              <div style="font-weight: 600; font-size: 14px;"><i class="fa-solid fa-wifi" style="color: var(--cyan); margin-right: 8px;"></i> WiFi Bill</div>
+              <div style="font-size: 11px; color: var(--text-muted);">₹${wifi.toLocaleString('en-IN')} ÷ ${occupantCount}</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text-main);">₹${wifiSplit.toLocaleString('en-IN')}</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 18px 0 0 0;">
+            <div style="font-size: 15px; font-weight: 700;">Your Total Share</div>
+            <div style="font-size: 26px; font-weight: 900; color: var(--primary);">₹${totalShare.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="bills-pay-btn" style="width: 100%; justify-content: center; margin-top: 20px; font-size: 15px; padding: 16px;">
+          <i class="fa-solid fa-credit-card"></i> Pay ₹${totalShare.toLocaleString('en-IN')} via Razorpay
+        </button>
+      </div>
+
+      <!-- Occupants Panel -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-users" style="color: var(--cyan);"></i> Room Members</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${confirmedOccupants.length === 0
+            ? `<p style="color: var(--text-muted); font-size: 13px;">Only you in this room.</p>`
+            : confirmedOccupants.map((b, i) => `
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 10px; border: 1px solid var(--border-glass);">
+                <img src="https://api.dicebear.com/7.x/adventurer/png?seed=${b.student_id}" style="width: 36px; height: 36px; border-radius: 50%;" alt="Member">
+                <div>
+                  <div style="font-size: 13px; font-weight: 600;">${b.student_id === currentUserProfile.id ? 'You' : 'Member ' + (i + 1)}</div>
+                  <div style="font-size: 11px; color: var(--green);">Active tenant</div>
+                </div>
+              </div>`).join('')
+          }
+        </div>
+
+        <div style="margin-top: 20px; padding: 14px; background: rgba(46,125,50,0.06); border: 1px solid rgba(46,125,50,0.2); border-radius: 12px; text-align: center;">
+          <div style="font-size: 11px; color: var(--text-muted);">Each person pays</div>
+          <div style="font-size: 22px; font-weight: 900; color: var(--green);">₹${totalShare.toLocaleString('en-IN')}</div>
+          <div style="font-size: 11px; color: var(--text-muted);">per month</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment History -->
+    <div class="glass-card" style="padding: 24px;">
+      <h3 style="font-size: 16px; margin-bottom: 20px;"><i class="fa-solid fa-clock-rotate-left" style="color: var(--primary);"></i> Payment History</h3>
+      ${paymentHistory.length === 0
+        ? `<div style="text-align: center; padding: 30px; border: 1px dashed var(--border-glass); border-radius: 12px;">
+             <p style="color: var(--text-muted);">No payments made yet. Pay your first bill above!</p>
+           </div>`
+        : `<div style="display: flex; flex-direction: column; gap: 12px;">
+             ${paymentHistory.map(p => `
+               <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: rgba(0,0,0,0.02); border: 1px solid var(--border-glass); border-radius: 12px;">
+                 <div style="display: flex; align-items: center; gap: 12px;">
+                   <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(46,125,50,0.1); display: flex; align-items: center; justify-content: center; color: var(--green);">
+                     <i class="fa-solid fa-circle-check"></i>
+                   </div>
+                   <div>
+                     <div style="font-weight: 600; font-size: 14px;">Bill Payment — ${p.method || 'UPI'}</div>
+                     <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${p.razorpay_id || p.id}</div>
+                   </div>
+                 </div>
+                 <div style="text-align: right;">
+                   <div style="font-size: 16px; font-weight: 700; color: var(--green);">₹${(p.amount || 0).toLocaleString('en-IN')}</div>
+                   <div style="font-size: 11px; color: var(--text-muted);">${new Date(p.created_at).toLocaleDateString('en-IN')}</div>
+                 </div>
+               </div>`).join('')}
+           </div>`
+      }
+    </div>
+  `;
+
+  // Pay button handler
+  const billsPayBtn = document.getElementById('bills-pay-btn');
+  if (billsPayBtn) {
+    billsPayBtn.addEventListener('click', async () => {
+      const origText = billsPayBtn.innerHTML;
+      billsPayBtn.disabled = true;
+      billsPayBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting to Razorpay...';
+
+      setTimeout(async () => {
+        billsPayBtn.innerHTML = '<i class="fa-solid fa-shield-check"></i> Authorizing...';
+
+        const { data: payment } = await db.from('payments').insert({
+          booking_id: activeBooking.id,
+          student_id: currentUserProfile.id,
+          amount: totalShare,
+          method: 'UPI',
+          status: 'Successful',
+          razorpay_id: 'pay_' + Math.random().toString(36).substring(2, 11),
+          receipt: 'rec_' + Date.now()
+        }).select().single();
+
+        setTimeout(() => {
+          const dialog = document.createElement('div');
+          dialog.className = 'modal-overlay';
+          dialog.innerHTML = `
+            <div class="glass-card" style="text-align: center; max-width: 380px; padding: 40px; border-color: var(--green);">
+              <div style="width: 64px; height: 64px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 26px; color: #fff;">
+                <i class="fa-solid fa-check"></i>
+              </div>
+              <h3 style="color: var(--green); font-size: 22px; margin-bottom: 8px;">Payment Successful!</h3>
+              <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 8px;">₹${totalShare.toLocaleString('en-IN')} paid for ${latestBill.billing_month}</p>
+              <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 24px;">Your share split by ${occupantCount} real member${occupantCount !== 1 ? 's' : ''} — accurate & verified.</p>
+              <div style="background: rgba(0,0,0,0.03); border: 1px solid var(--border-glass); padding: 12px; border-radius: 10px; font-size: 11px; font-family: monospace; color: var(--text-main); margin-bottom: 24px;">
+                ${payment?.razorpay_id || 'pay_ref_' + Date.now()}
+              </div>
+              <button class="btn btn-primary" id="bill-success-ok" style="width: 100%; justify-content: center; background: var(--green);">
+                Done
+              </button>
+            </div>`;
+          document.body.appendChild(dialog);
+          document.body.style.overflow = 'hidden';
+          document.getElementById('bill-success-ok').addEventListener('click', () => {
+            dialog.remove();
+            document.body.style.overflow = '';
+            loadStudentBillsView(pane); // Refresh to show payment in history
+          });
+        }, 1000);
+      }, 1500);
+    });
+  }
 }
 
 // 6.4 MAINTENANCE SLA TICKETS VIEW
