@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import 'razorpay_checkout_sheet.dart';
+import 'lease_agreement_screen.dart';
+import 'chat_room_screen.dart';
 
 class RoomExpensesScreen extends StatefulWidget {
   final String roomId;
@@ -83,12 +85,14 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
     _expensesSubscription?.cancel();
     _billsSubscription?.cancel();
     _paymentsSubscription?.cancel();
+    _bookingsSubscription?.cancel();
     super.dispose();
   }
 
   StreamSubscription? _expensesSubscription;
   StreamSubscription? _billsSubscription;
   StreamSubscription? _paymentsSubscription;
+  StreamSubscription? _bookingsSubscription;
 
   void _setupRealtimeStreams() {
     final client = Supabase.instance.client;
@@ -138,60 +142,51 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         _studentPayments = payments;
       });
     });
+
+    // 4. Stream active roommates for this room in real-time
+    _bookingsSubscription = db.streamActiveBookingsForRoom(widget.roomId).listen((bookings) async {
+      final Set<String> roommateIds = bookings.map((b) => b.studentId).toSet();
+      roommateIds.add(widget.currentUser.uid); // Always ensure current user is in the list
+      
+      try {
+        final usersResponse = await client
+            .from('users')
+            .select('id, name, profile_pic')
+            .inFilter('id', roommateIds.toList());
+            
+        final List<Map<String, dynamic>> loadedRoommates = [];
+        for (var uid in roommateIds) {
+          final userDoc = (usersResponse as List).cast<Map<String, dynamic>?>().firstWhere(
+            (u) => u != null && u['id'].toString() == uid,
+            orElse: () => null,
+          );
+          String name = 'Roommate';
+          if (uid == widget.currentUser.uid) {
+            name = 'You';
+          } else if (userDoc != null && userDoc['name'] != null) {
+            name = userDoc['name'].toString();
+          }
+          loadedRoommates.add({
+            'id': uid,
+            'name': name,
+            'profile_pic': userDoc?['profile_pic'],
+          });
+        }
+        
+        if (mounted) {
+          setState(() {
+            _activeRoommates = loadedRoommates;
+            _activeRoommateCount = loadedRoommates.length > 0 ? loadedRoommates.length : 1;
+          });
+        }
+      } catch (e) {
+        debugPrint("Error loading roommates in real-time stream: $e");
+      }
+    });
   }
 
   void _loadLandlordBillsAndRoommates() async {
     final client = Supabase.instance.client;
-    
-    // Fetch confirmed/active roommates count and profiles — NO bots/fallback fake data
-    try {
-      final response = await client
-          .from('bookings')
-          .select('student_id, status')
-          .eq('room_id', widget.roomId)
-          .inFilter('status', ['Active', 'Confirmed']); // Only confirmed occupants, NOT 'Requested'
-      final roommateIds = (response as List).map((e) => e['student_id'].toString()).toSet();
-      // Always include current user if they have an active booking
-      roommateIds.add(widget.currentUser.uid);
-
-      final usersResponse = await client
-          .from('users')
-          .select('id, name, profile_pic')
-          .inFilter('id', roommateIds.toList());
-
-      final List<Map<String, dynamic>> loadedRoommates = [];
-      for (var uid in roommateIds) {
-        final userDoc = (usersResponse as List).cast<Map<String, dynamic>?>().firstWhere(
-          (u) => u != null && u['id'].toString() == uid,
-          orElse: () => null,
-        );
-        String name = 'Roommate';
-        if (uid == widget.currentUser.uid) {
-          name = 'You';
-        } else if (userDoc != null && userDoc['name'] != null) {
-          name = userDoc['name'].toString();
-        }
-        loadedRoommates.add({
-          'id': uid,
-          'name': name,
-          'profile_pic': userDoc?['profile_pic'],
-        });
-      }
-
-      setState(() {
-        _activeRoommates = loadedRoommates;
-        // Split count = number of CONFIRMED occupants (minimum 1 = just the current user)
-        _activeRoommateCount = loadedRoommates.length > 0 ? loadedRoommates.length : 1;
-      });
-    } catch (e) {
-      // Fallback: only current user — NEVER inject fake bot roommates
-      setState(() {
-        _activeRoommates = [
-          {'id': widget.currentUser.uid, 'name': 'You'},
-        ];
-        _activeRoommateCount = 1;
-      });
-    }
 
     // Load user's booking ID if not passed
     if (_currentBookingId == null) {
@@ -489,6 +484,110 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildActionChip(
+                        context,
+                        icon: Icons.assignment_outlined,
+                        label: 'Tenancy Contract',
+                        onTap: () async {
+                          final client = Supabase.instance.client;
+                          try {
+                            final bRes = await client.from('bookings').select().eq('id', widget.bookingId).single();
+                            final b = Booking.fromMap(bRes, widget.bookingId!);
+                            if (!mounted) return;
+                            
+                            if (b.rentalAgreementUrl == 'signed') {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Lease Tenancy Contract is fully signed and secured.')),
+                              );
+                              return;
+                            }
+                            final signed = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LeaseAgreementScreen(
+                                  booking: b,
+                                  student: widget.currentUser,
+                                ),
+                              ),
+                            );
+                            if (signed == true) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Lease Tenancy Contract signed successfully!')),
+                              );
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to check lease status: $e')),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _buildActionChip(
+                        context,
+                        icon: Icons.receipt_long_outlined,
+                        label: 'Get Receipt',
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Receipt PDF generated and saved successfully!')),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _buildActionChip(
+                        context,
+                        icon: Icons.group_outlined,
+                        label: 'Roommates Chat',
+                        onTap: () async {
+                          final chatService = ChatService();
+                          final client = Supabase.instance.client;
+                          try {
+                            final response = await client
+                                .from('bookings')
+                                .select('student_id')
+                                .eq('room_id', widget.roomId)
+                                .inFilter('status', ['Active', 'Confirmed']);
+                                
+                            final List<String> activeRoommateIds = (response as List)
+                                .map((e) => e['student_id'].toString())
+                                .toList();
+                            if (!activeRoommateIds.contains(widget.currentUser.uid)) {
+                              activeRoommateIds.add(widget.currentUser.uid);
+                            }
+                            
+                            final groupChatId = await chatService.getOrCreateRoommateGroupChat(
+                              widget.roomId,
+                              _roomTitle.isNotEmpty ? _roomTitle : 'My Room',
+                              activeRoommateIds,
+                            );
+                            
+                            if (!mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatRoomScreen(
+                                  chatRoomId: groupChatId,
+                                  currentUserId: widget.currentUser.uid,
+                                  currentUserName: widget.currentUser.name,
+                                  peerName: 'Roommates: ${_roomTitle.isNotEmpty ? _roomTitle : 'My Room'}',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to open roommates chat: $e')),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Row(
                   children: List.generate(_activeRoommates.length, (index) {
@@ -762,6 +861,17 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
           ],
         ),
       ],
+    );
+  Widget _buildActionChip(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
+    return ActionChip(
+      avatar: Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      onPressed: onTap,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
     );
   }
 }

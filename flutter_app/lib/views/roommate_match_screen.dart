@@ -506,250 +506,234 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
       );
     }
 
-    final candidate = _candidates[_cardIndex];
-    final matchPercentage = candidate['matchPercentage'] ?? 85;
-    final candidateUid = candidate['uid'].toString();
-    final bool isFriend = _friendIds.contains(candidateUid);
-    final bool isSent = _sentRequestIds.contains(candidateUid);
-    final bool isReceived = _receivedRequestIds.contains(candidateUid);
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: _candidates.length,
+      itemBuilder: (context, index) {
+        final candidate = _candidates[index];
+        final matchPercentage = candidate['matchPercentage'] ?? 85;
+        final candidateUid = candidate['uid'].toString();
+        final bool isFriend = _friendIds.contains(candidateUid);
+        final bool isSent = _sentRequestIds.contains(candidateUid);
+        final bool isReceived = _receivedRequestIds.contains(candidateUid);
+        final db = Provider.of<SupabaseService>(context, listen: false);
 
-    return Column(
-      children: [
-        Expanded(
-          child: Card(
-            elevation: 8,
-            shadowColor: Colors.black26,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Positioned.fill(
-                  child: Image.network(
-                    candidate['avatar'] ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: Colors.grey.shade900,
-                      child: const Icon(Icons.person, size: 80, color: Colors.white24),
-                    ),
-                  ),
-                ),
-
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.85),
-                          Colors.black.withOpacity(0.3),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.5, 1.0],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundImage: NetworkImage(
+                        candidate['avatar'] ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80',
                       ),
+                      backgroundColor: Colors.grey.shade100,
                     ),
-                  ),
-                ),
-
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.65),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Theme.of(context).primaryColor, width: 2),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bolt_rounded, color: Theme.of(context).primaryColor, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$matchPercentage% Match',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                Positioned(
-                  bottom: 20,
-                  left: 20,
-                  right: 20,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  candidate['name'] ?? 'Student',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 26,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                candidate['name'] ?? 'Student',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$matchPercentage% Match',
+                                  style: TextStyle(
+                                    color: Theme.of(context).primaryColor,
                                     fontWeight: FontWeight.bold,
-                                    shadows: [
-                                      Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2)),
-                                    ],
+                                    fontSize: 10,
                                   ),
                                 ),
-                                Text(
-                                  candidate['college'] ?? 'RoomMate Student',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade300,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    shadows: const [
-                                      Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 1)),
-                                    ],
-                                  ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            candidate['college'] ?? 'RoomMate Student',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          ),
+                          const SizedBox(height: 8),
+                          // Small Badges Row
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildSmallBadge(
+                                  icon: Icons.bedtime_rounded,
+                                  label: candidate['sleepHabit'] ?? 'Flexible',
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 6),
+                                _buildSmallBadge(
+                                  icon: Icons.clean_hands_rounded,
+                                  label: candidate['cleanliness'] ?? 'Medium',
+                                  color: Colors.blueAccent,
+                                ),
+                                const SizedBox(width: 6),
+                                _buildSmallBadge(
+                                  icon: Icons.restaurant_rounded,
+                                  label: candidate['dietary'] ?? 'Any',
+                                  color: Colors.greenAccent,
                                 ),
                               ],
                             ),
                           ),
-                          Row(
-                            children: [
-                              Builder(
-                                builder: (context) {
-                                  if (isFriend) {
-                                    return IconButton(
-                                      icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent, size: 28),
-                                      tooltip: 'Unfriend roommate',
-                                      onPressed: () async {
-                                        final db = Provider.of<SupabaseService>(context, listen: false);
-                                        await db.removeFriend(widget.currentUser.uid, candidateUid);
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
-                                      },
-                                    );
-                                  } else if (isSent) {
-                                    return IconButton(
-                                      icon: const Icon(Icons.pending_actions_rounded, color: Colors.orangeAccent, size: 28),
-                                      tooltip: 'Request Sent (Cancel Request)',
-                                      onPressed: () async {
-                                        final db = Provider.of<SupabaseService>(context, listen: false);
-                                        await db.removeFriend(widget.currentUser.uid, candidateUid);
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
-                                      },
-                                    );
-                                  } else if (isReceived) {
-                                    return IconButton(
-                                      icon: const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 28),
-                                      tooltip: 'Accept Friend Request',
-                                      onPressed: () async {
-                                        final db = Provider.of<SupabaseService>(context, listen: false);
-                                        await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
-                                      },
-                                    );
-                                  } else {
-                                    return IconButton(
-                                      icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 28),
-                                      tooltip: 'Add Friend',
-                                      onPressed: () async {
-                                        final db = Provider.of<SupabaseService>(context, listen: false);
-                                        await db.addFriend(widget.currentUser.uid, candidateUid);
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
-                                      },
-                                    );
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 28),
-                                onPressed: () => _showBreakdownSheet(context, candidate),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      const Divider(color: Colors.white24, height: 1),
-                      const SizedBox(height: 16),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildTranslucentBadge(
-                            context,
-                            icon: Icons.bedtime_rounded,
-                            label: candidate['sleepHabit'] ?? 'Flexible',
-                            color: Colors.amber,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Colors.black12),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // Button 1: Add Friend Status Button
+                    Builder(
+                      builder: (context) {
+                        if (isFriend) {
+                          return OutlinedButton.icon(
+                            onPressed: () async {
+                              await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                            },
+                            icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent, size: 16),
+                            label: const Text('Remove Friend', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.redAccent),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          );
+                        } else if (isSent) {
+                          return OutlinedButton.icon(
+                            onPressed: () async {
+                              await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
+                            },
+                            icon: const Icon(Icons.pending_actions_rounded, color: Colors.orangeAccent, size: 16),
+                            label: const Text('Cancel Request', style: TextStyle(color: Colors.orangeAccent, fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.orangeAccent),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          );
+                        } else if (isReceived) {
+                          return ElevatedButton.icon(
+                            onPressed: () async {
+                              await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
+                            },
+                            icon: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+                            label: const Text('Accept Request', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          );
+                        } else {
+                          return ElevatedButton.icon(
+                            onPressed: () async {
+                              await db.addFriend(widget.currentUser.uid, candidateUid);
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
+                            },
+                            icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 16),
+                            label: const Text('Add Friend', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    // Button 2: Message Button
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final chatService = Provider.of<ChatService>(context, listen: false);
+                        final chatRoomId = await chatService.getOrCreateChatRoom(
+                          widget.currentUser.uid,
+                          candidateUid,
+                          'Roommate Compatibility',
+                        );
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomScreen(
+                              chatRoomId: chatRoomId,
+                              currentUserId: widget.currentUser.uid,
+                              currentUserName: widget.currentUser.name,
+                              peerName: candidate['name'] ?? 'Student',
+                            ),
                           ),
-                          _buildTranslucentBadge(
-                            context,
-                            icon: Icons.clean_hands_rounded,
-                            label: '${candidate['cleanliness'] ?? 'Medium'} Clean',
-                            color: Colors.blueAccent,
-                          ),
-                          _buildTranslucentBadge(
-                            context,
-                            icon: Icons.restaurant_rounded,
-                            label: candidate['dietary'] ?? 'Any',
-                            color: Colors.greenAccent,
-                          ),
-                        ],
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 16),
+                      label: const Text('Message', style: TextStyle(color: Colors.white, fontSize: 11)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
+        );
+      },
+    );
+  }
 
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, spreadRadius: 2),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  heroTag: 'no_btn',
-                  onPressed: () => _handleSwipe(false),
-                  backgroundColor: Colors.grey.shade900,
-                  foregroundColor: Colors.redAccent,
-                  elevation: 2,
-                  child: const Icon(Icons.close_rounded, size: 30),
-                ),
-              ),
-              const SizedBox(width: 32),
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.2), blurRadius: 15, spreadRadius: 3),
-                  ],
-                ),
-                child: FloatingActionButton.large(
-                  heroTag: 'yes_btn',
-                  onPressed: () => _handleSwipe(true),
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  child: const Icon(Icons.favorite_rounded, size: 38),
-                ),
-              ),
-            ],
+  Widget _buildSmallBadge({required IconData icon, required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(color: color.withOpacity(0.9), fontSize: 9, fontWeight: FontWeight.bold),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

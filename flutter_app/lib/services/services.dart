@@ -960,8 +960,24 @@ class ChatService {
     return _client
         .from('messages')
         .stream(primaryKey: ['id'])
-        .map((maps) {
-          return maps.where((m) => m['sender_id'] != currentUserId && (m['is_read'] ?? false) == false).length;
+        .asyncMap((maps) async {
+          try {
+            final chatsRes = await _client
+                .from('chats')
+                .select('id, participants');
+            final userChatIds = chatsRes
+                .where((c) => (c['participants'] as List?)?.contains(currentUserId) ?? false)
+                .map((c) => c['id'].toString())
+                .toSet();
+
+            return maps.where((m) => 
+              userChatIds.contains(m['chat_id']) && 
+              m['sender_id'] != currentUserId && 
+              (m['is_read'] ?? false) == false
+            ).length;
+          } catch (e) {
+            return 0;
+          }
         });
   }
 }

@@ -1003,60 +1003,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color? iconColor,
-  }) {
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFEEEEEE)),
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  color: iconColor ?? Theme.of(context).primaryColor,
-                  size: 22,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   String _getMonthName(int month) {
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -1064,149 +1011,85 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     return 'June';
   }
 
-  Widget _buildBookingsView(SupabaseService db, PaymentService payment) {
+  Widget _buildMyRoomView(SupabaseService db, PaymentService payment) {
     return StreamBuilder<List<Booking>>(
       stream: db.streamBookings(widget.user.uid, false),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
         final bookings = snapshot.data ?? [];
-        
-        if (bookings.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.payment, size: 60, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('No rental bookings located. Reserve a room first!'),
-                ],
+        final activeBooking = bookings.firstWhere(
+          (b) => b.status == 'Active' || b.status == 'Confirmed',
+          orElse: () => bookings.isNotEmpty ? bookings.first : Booking(
+            id: '', studentId: '', roomId: '', ownerId: '', status: 'None', 
+            moveInDate: DateTime.now(), rentalAgreementUrl: '', rent: 0
+          ),
+        );
+
+        if (activeBooking.status == 'None' || bookings.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('My Room')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.home_work_outlined, size: 60, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No active room booked yet.',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Go to the Rent Feed tab to find and book your ideal accommodation!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: bookings.length,
-          itemBuilder: (context, idx) {
-            final b = bookings[idx];
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Booking ID: ${b.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: b.status == 'Active' ? Colors.green.withOpacity(0.15) : Colors.amber.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            b.status,
-                            style: TextStyle(
-                              color: b.status == 'Active' ? Colors.green.shade800 : Colors.amber.shade800,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    StreamBuilder<List<Booking>>(
-                      stream: db.streamActiveBookingsForRoom(b.roomId),
-                      builder: (context, activeSnapshot) {
-                        final roommates = activeSnapshot.data ?? [];
-                        final activeCount = roommates.length > 0 ? roommates.length : 1;
-                        final splitRent = (b.rent / activeCount).round();
-                        
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Rent Cost: ₹${b.rent}/mo',
-                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    ),
-                                    if (roommates.length > 1) ...[
-                                      Text(
-                                        'Your Share: ₹$splitRent/mo',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      'Move In',
-                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                                    ),
-                                    Text(
-                                      b.moveInDate.toString().split(' ')[0],
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            if (roommates.length > 1) ...[
-                              Row(
-                                children: [
-                                  Icon(Icons.people_alt_rounded, size: 14, color: Theme.of(context).primaryColor),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Active Roommates: $activeCount',
-                                    style: const TextStyle(fontSize: 11, color: Colors.black54),
-                                  ),
-                                ],
-                              ),
-                            ] else ...[
-                              const Row(
-                                children: [
-                                  Icon(Icons.person_outline_rounded, size: 14, color: Colors.grey),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Single Occupant PG room',
-                                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    if (b.status == 'Requested') ...[
+        if (activeBooking.status == 'Requested') {
+          return Scaffold(
+            appBar: AppBar(title: const Text('My Room (Pending Deposit)')),
+            body: Center(
+              child: Card(
+                margin: const EdgeInsets.all(24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 60, color: Colors.amber),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Deposit Payment Required',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your booking request for the room is pending. Please pay the security deposit of ₹${activeBooking.rent} to secure your room.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        height: 40,
+                        height: 48,
                         child: ElevatedButton(
                           onPressed: _processingPayment ? null : () async {
                             setState(() {
                               _processingPayment = true;
                             });
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Initializing Secure Razorpay Gateway...')));
-                            final success = await payment.triggerRazorpayPayment(b.id, b.rent, widget.user.uid);
+                            final success = await payment.triggerRazorpayPayment(activeBooking.id, activeBooking.rent, widget.user.uid);
                             setState(() {
                               _processingPayment = false;
                             });
@@ -1216,8 +1099,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => PaymentSuccessScreen(
-                                      bookingId: b.id,
-                                      amount: b.rent,
+                                      bookingId: activeBooking.id,
+                                      amount: activeBooking.rent,
                                       transactionId: 'pay_${DateTime.now().millisecondsSinceEpoch}',
                                     ),
                                   ),
@@ -1225,7 +1108,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                               }
                             } else {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment failed or cancelled.')));
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment failed or cancelled.')),);
                               }
                             }
                           },
@@ -1235,181 +1118,22 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                   height: 18, 
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                                 )
-                              : const Text('Pay Booking Deposit (Razorpay)', style: TextStyle(fontSize: 12)),
+                              : const Text('Pay Booking Deposit (Razorpay)', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
-                    ] else ...[
-                    if (b.status == 'Active') ...[
-                      Column(
-                        children: [
-                          Row(
-                            children: [
-                              _buildActionButton(
-                                icon: Icons.file_download,
-                                label: 'Receipt',
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Receipt PDF generated and saved successfully!')),
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              _buildActionButton(
-                                icon: b.rentalAgreementUrl == 'signed' ? Icons.verified_user_rounded : Icons.edit_document,
-                                label: b.rentalAgreementUrl == 'signed' ? 'Signed' : 'Sign Lease',
-                                iconColor: b.rentalAgreementUrl == 'signed' ? Colors.green : null,
-                                onTap: () async {
-                                  if (b.rentalAgreementUrl == 'signed') {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Lease Tenancy Contract is fully signed and secured.')),
-                                    );
-                                    return;
-                                  }
-                                  final signed = await Navigator.push<bool>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => LeaseAgreementScreen(
-                                        booking: b,
-                                        student: _currentUser,
-                                      ),
-                                    ),
-                                  );
-                                  if (signed == true) {
-                                    setState(() {}); // refresh view
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              _buildActionButton(
-                                icon: Icons.calculate_rounded,
-                                label: 'Bills',
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => RoomExpensesScreen(
-                                        roomId: b.roomId,
-                                        currentUser: _currentUser,
-                                        bookingId: b.id,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              _buildActionButton(
-                                icon: Icons.group_rounded,
-                                label: 'Chat',
-                                onTap: () async {
-                                  final chatService = Provider.of<ChatService>(context, listen: false);
-                                  
-                                  try {
-                                    final response = await Supabase.instance.client
-                                        .from('bookings')
-                                        .select('student_id')
-                                        .eq('room_id', b.roomId)
-                                        .inFilter('status', ['Active', 'Requested']);
-                                        
-                                    final List activeRoommateIds = (response as List)
-                                        .map((e) => e['student_id'].toString())
-                                        .toList();
-                                    
-                                    final roomResponse = await Supabase.instance.client
-                                        .from('rooms')
-                                        .select('title')
-                                        .eq('id', b.roomId)
-                                        .single();
-                                    final roomTitle = roomResponse['title'] ?? 'Room';
-                                    
-                                    final chatRoomId = await chatService.getOrCreateRoommateGroupChat(
-                                      b.roomId,
-                                      roomTitle,
-                                      List<String>.from(activeRoommateIds),
-                                    );
-                                    
-                                    if (!context.mounted) return;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ChatRoomScreen(
-                                          chatRoomId: chatRoomId,
-                                          currentUserId: _currentUser.uid,
-                                          currentUserName: _currentUser.name,
-                                          peerName: 'Roommates: $roomTitle',
-                                        ),
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ChatRoomScreen(
-                                          chatRoomId: 'group_${b.roomId}',
-                                          currentUserId: _currentUser.uid,
-                                          currentUserName: _currentUser.name,
-                                          peerName: 'Roommates (Offline)',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ] else ...[
-                      Row(
-                        children: [
-                          _buildActionButton(
-                            icon: Icons.file_download,
-                            label: 'Receipt',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Receipt PDF generated and saved successfully!')),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          _buildActionButton(
-                            icon: b.rentalAgreementUrl == 'signed' ? Icons.verified_user_rounded : Icons.edit_document,
-                            label: b.rentalAgreementUrl == 'signed' ? 'Signed' : 'Sign Lease',
-                            iconColor: b.rentalAgreementUrl == 'signed' ? Colors.green : null,
-                            onTap: () async {
-                              if (b.rentalAgreementUrl == 'signed') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Lease Tenancy Contract is fully signed and secured.')),
-                                );
-                                return;
-                              }
-                              final signed = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => LeaseAgreementScreen(
-                                    booking: b,
-                                    student: _currentUser,
-                                  ),
-                                ),
-                              );
-                              if (signed == true) {
-                                setState(() {}); // refresh view
-                              }
-                            },
-                          ),
-                        ],
-                      ),
                     ],
-                    ],
-                  ],
+                  ),
                 ),
               ),
-            );
-          },
+            ),
+          );
+        }
+
+        // Active / Confirmed booking -> render the RoomExpensesScreen directly!
+        return RoomExpensesScreen(
+          roomId: activeBooking.roomId,
+          currentUser: widget.user,
+          bookingId: activeBooking.id,
         );
       },
     );
@@ -2889,7 +2613,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         const BottomNavigationBarItem(icon: Icon(Icons.shield_rounded), label: 'Admin'),
       const BottomNavigationBarItem(icon: Icon(Icons.feed_rounded), label: 'Rent Feed'),
       const BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: 'Matches'),
-      const BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Bookings'),
+      const BottomNavigationBarItem(icon: Icon(Icons.home_work_rounded), label: 'My Room'),
       const BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Tickets'),
       BottomNavigationBarItem(
         icon: StreamBuilder<int>(
@@ -2912,16 +2636,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       if (isAdmin) _buildAdminPanelView(db),
       _buildFeedView(db),
       RoommateMatchScreen(currentUser: _currentUser),
-      _buildBookingsView(db, payment),
+      _buildMyRoomView(db, payment),
       _buildTicketsView(db),
       ChatsListScreen(currentUserId: _currentUser.uid, currentUserName: _currentUser.name),
       _buildProfileView(auth),
     ];
 
     final isChatScreen = navBodies[_currentIndex] is ChatsListScreen;
+    final hideMainAppBar = isChatScreen || navItems[_currentIndex].label == 'My Room';
 
     return Scaffold(
-      appBar: isChatScreen
+      appBar: hideMainAppBar
           ? null
           : AppBar(
               title: const Text('CampusStay Portal'),

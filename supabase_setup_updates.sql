@@ -395,3 +395,24 @@ drop trigger if exists on_maintenance_resolved on public.maintenance;
 create trigger on_maintenance_resolved
   after update on public.maintenance
   for each row execute procedure public.notify_students_maintenance_resolved();
+
+-- =============================================================
+-- 15. Fix Bookings RLS to allow Roommates sharing a room to see each other's bookings
+-- =============================================================
+
+-- Security definer function to avoid infinite recursion on public.bookings
+create or replace function public.get_user_room_ids(user_id uuid)
+returns setof uuid as $$
+  select room_id from public.bookings where student_id = user_id and status in ('Active', 'Confirmed');
+$$ language sql security definer;
+
+-- Drop and recreate the SELECT policy on bookings
+drop policy if exists "Bookings are viewable by student, owner, or admin" on public.bookings;
+create policy "Bookings are viewable by student, owner, or admin"
+  on public.bookings for select
+  using (
+    auth.uid() = student_id 
+    or auth.uid() = owner_id 
+    or public.is_admin()
+    or room_id in (select public.get_user_room_ids(auth.uid()))
+  );
