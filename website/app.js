@@ -1850,7 +1850,7 @@ async function loadStudentBillsView(pane) {
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 28px; margin-bottom: 28px;">
+    <div style="display: flex; flex-direction: column; gap: 24px;">
       <!-- Bill Breakdown -->
       <div class="glass-card" style="padding: 28px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -1900,30 +1900,28 @@ async function loadStudentBillsView(pane) {
         </button>
       </div>
 
-      <!-- Occupants Panel -->
-      <div class="glass-card" style="padding: 24px;">
-        <h3 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-users" style="color: var(--cyan);"></i> Room Members</h3>
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+      <!-- Room Members inline row -->
+      <div class="glass-card" style="padding: 20px;">
+        <h3 style="font-size: 15px; margin-bottom: 14px;"><i class="fa-solid fa-users" style="color: var(--primary); margin-right:8px;"></i>Room Members</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
           ${confirmedOccupants.length === 0
             ? `<p style="color: var(--text-muted); font-size: 13px;">Only you in this room.</p>`
-            : confirmedOccupants.map((b, i) => `
-              <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 10px; border: 1px solid var(--border-glass);">
-                <img src="https://api.dicebear.com/7.x/adventurer/png?seed=${b.student_id}" style="width: 36px; height: 36px; border-radius: 50%;" alt="Member">
+            : [...new Map(confirmedOccupants.map(b => [b.student_id, b])).values()].map((b, i) => `
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(0,0,0,0.03); border-radius: 10px; border: 1px solid var(--border-glass);">
+                <img src="https://api.dicebear.com/7.x/adventurer/png?seed=${b.student_id}" style="width: 32px; height: 32px; border-radius: 50%;" alt="Member">
                 <div>
                   <div style="font-size: 13px; font-weight: 600;">${b.student_id === currentUserProfile.id ? 'You' : 'Member ' + (i + 1)}</div>
                   <div style="font-size: 11px; color: var(--green);">Active tenant</div>
                 </div>
               </div>`).join('')
           }
-        </div>
-
-        <div style="margin-top: 20px; padding: 14px; background: rgba(46,125,50,0.06); border: 1px solid rgba(46,125,50,0.2); border-radius: 12px; text-align: center;">
-          <div style="font-size: 11px; color: var(--text-muted);">Each person pays</div>
-          <div style="font-size: 22px; font-weight: 900; color: var(--green);">₹${totalShare.toLocaleString('en-IN')}</div>
-          <div style="font-size: 11px; color: var(--text-muted);">per month</div>
+          <div style="margin-left: auto; padding: 12px 20px; background: rgba(46,125,50,0.07); border: 1px solid rgba(46,125,50,0.2); border-radius: 12px; text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted);">Each person pays</div>
+            <div style="font-size: 20px; font-weight: 900; color: var(--green);">₹${totalShare.toLocaleString('en-IN')}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">per month</div>
+          </div>
         </div>
       </div>
-    </div>
 
     <!-- Payment History -->
     <div class="glass-card" style="padding: 24px;">
@@ -2020,61 +2018,61 @@ async function loadTicketsView(pane) {
   }
 
   pane.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 28px;">
+      <!-- Raise Ticket Card at top -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size:16px; margin-bottom:6px;"><i class="fa-solid fa-screwdriver-wrench" style="color:var(--primary); margin-right:8px;"></i>Raise Maintenance Ticket</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Describe plumbing, electrical or utility complaints inside your co-living flat.</p>
+        ${!activeBooking ? `
+          <div style="text-align: center; padding: 20px; background: rgba(211,47,47,0.05); border-radius: 10px; border: 1px solid rgba(211,47,47,0.15);">
+            <p style="font-size: 13px; color: var(--primary); font-weight: bold;">No active bookings found.</p>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">You must have an approved flat booking before submitting maintenance requests.</p>
+          </div>
+        ` : `
+          <form id="raise-ticket-form" style="display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: flex-end;">
+            <div class="input-group" style="margin-bottom:0;">
+              <label>Issue Description</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-circle-exclamation input-icon"></i>
+                <input type="text" id="ticket-issue" placeholder="Leaking tap in bathroom" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="white-space: nowrap; padding: 14px 20px;">
+              <i class="fa-solid fa-paper-plane"></i> File SLA Ticket
+            </button>
+          </form>
+        `}
+      </div>
+
+      <!-- Ticket History below -->
       <div>
-        <h2>SLA Maintenance Request History</h2>
-        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Track maintenance issues. Landlords must respond inside 24 hours.</p>
-        
-        <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <h2 style="font-size:18px; margin-bottom:6px;">SLA Maintenance Request History</h2>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Track maintenance issues. Landlords must respond inside 24 hours.</p>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
           ${tickets.length === 0 ? `
             <div style="text-align: center; padding: 40px; border: 1px dashed var(--border-glass); border-radius: 12px;">
-              <p style="color: var(--text-muted);">No maintenance tickets filed yet.</p>
+              <i class="fa-solid fa-check-circle fa-2x" style="color: var(--text-muted); margin-bottom: 12px;"></i>
+              <p style="color: var(--text-muted);">No maintenance tickets filed yet. Use the form above to raise an issue.</p>
             </div>
           ` : tickets.map(ticket => `
             <div class="ticket-row-card">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span class="bold-val" style="font-size: 15px;"># ${ticket.id.substring(0, 8)}</span>
-                <span class="tag" style="background: ${ticket.status === 'Resolved' ? 'rgba(0, 245, 160, 0.1)' : 'rgba(255, 75, 92, 0.1)'}; color: ${ticket.status === 'Resolved' ? 'var(--green)' : 'var(--primary)'}; border-color: ${ticket.status === 'Resolved' ? 'rgba(0,245,160,0.2)' : 'rgba(255,75,92,0.2)'};">${ticket.status}</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span class="bold-val" style="font-size: 14px;"># ${ticket.id.substring(0, 8)}</span>
+                <span class="tag" style="background: ${ticket.status === 'Resolved' ? 'rgba(46,125,50,0.1)' : 'rgba(211,47,47,0.1)'}; color: ${ticket.status === 'Resolved' ? 'var(--green)' : 'var(--primary)'}; border-color: ${ticket.status === 'Resolved' ? 'rgba(46,125,50,0.2)' : 'rgba(211,47,47,0.2)'}; border-radius: 20px; padding: 4px 12px;">${ticket.status}</span>
               </div>
-              <p style="font-size: 14px; color: var(--text-main); font-weight: 500;">Issue: ${ticket.issue}</p>
-              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;"><i class="fa-solid fa-location-dot"></i> ${ticket.room_address}</p>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 10px; display: flex; gap: 15px;">
+              <p style="font-size: 14px; color: var(--text-main); font-weight: 600;"><i class="fa-solid fa-wrench" style="color:var(--text-muted); margin-right:6px;"></i>${ticket.issue}</p>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;"><i class="fa-solid fa-location-dot"></i> ${ticket.room_address}</p>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; display: flex; gap: 15px;">
                 <span>Filed: ${new Date(ticket.created_at).toLocaleDateString()}</span>
-                ${ticket.resolved_at ? `<span>Resolved: ${new Date(ticket.resolved_at).toLocaleDateString()}</span>` : ''}
+                ${ticket.resolved_at ? `<span>Resolved: ${new Date(ticket.resolved_at).toLocaleDateString()}</span>` : '<span style="color: var(--primary);">Awaiting Response (24h SLA)</span>'}
               </div>
             </div>
           `).join('')}
         </div>
       </div>
-
-      <div>
-        <div class="glass-card" style="padding: 24px;">
-          <h3>Raise Maintenance Ticket</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px; margin-bottom: 20px;">Describe plumbing, electrical or utility complaints inside co-living flat.</p>
-          
-          ${!activeBooking ? `
-            <div style="text-align: center; padding: 20px; background: rgba(255, 75, 92, 0.05); border-radius: 10px; border: 1px solid rgba(255,75,92,0.15);">
-              <p style="font-size: 13px; color: var(--primary); font-weight: bold;">No active bookings found.</p>
-              <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">You must have an approved flat booking before submitting maintenance requests.</p>
-            </div>
-          ` : `
-            <form id="raise-ticket-form">
-              <div class="input-group">
-                <label>Issue Description</label>
-                <div class="input-wrapper">
-                  <i class="fa-solid fa-circle-exclamation input-icon"></i>
-                  <input type="text" id="ticket-issue" placeholder="Leaking tap in bathroom" required>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
-                <i class="fa-solid fa-paper-plane"></i> File SLA Ticket
-              </button>
-            </form>
-          `}
-        </div>
-      </div>
     </div>
   `;
+
 
   if (activeBooking) {
     document.getElementById('raise-ticket-form').addEventListener('submit', async (e) => {
@@ -2136,24 +2134,24 @@ async function loadChatView(pane) {
   }
 
   pane.innerHTML = `
-    <div style="display: grid; grid-template-columns: 240px 1fr; height: 500px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-glass); border-radius: 16px; overflow: hidden;">
-      <!-- Sidebar Chats list -->
-      <div class="chat-thread-list" id="chat-thread-container">
-        <!-- Render chats threads -->
-      </div>
+    <div class="chat-window">
+      <div class="chat-pane-wrapper">
+        <!-- Thread Sidebar -->
+        <div class="chat-thread-list" id="chat-thread-container"></div>
 
-      <!-- Live Messaging Box -->
-      <div style="display: flex; flex-direction: column; height: 100%;">
-        <div id="chat-header-pane" style="padding: 15px 20px; border-bottom: 1px solid var(--border-glass); font-weight: bold;">
-          Chat Thread Details
+        <!-- Message Panel -->
+        <div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+          <div id="chat-header-pane" style="padding: 13px 18px; border-bottom: 1px solid rgba(0,0,0,0.08); font-weight: 700; font-size: 15px; background: #fff; flex-shrink: 0;">
+            Select a conversation
+          </div>
+          <div class="chat-messages-container" id="chat-messages-scroll">
+            <!-- Messages rendered dynamically -->
+          </div>
+          <form class="chat-input-row" id="chat-input-form" style="flex-shrink: 0;">
+            <input type="text" id="chat-msg-text" placeholder="Type a message..." required autocomplete="off">
+            <button type="submit" class="btn btn-primary" style="padding: 12px 20px; margin: 0; flex-shrink:0;"><i class="fa-solid fa-paper-plane"></i></button>
+          </form>
         </div>
-        <div class="chat-messages-container" id="chat-messages-scroll">
-          <!-- Render messages dynamically -->
-        </div>
-        <form class="chat-input-row" id="chat-input-form">
-          <input type="text" id="chat-msg-text" placeholder="Type message..." required autocomplete="off">
-          <button type="submit" class="btn btn-primary" style="padding: 12px 20px; margin: 0;"><i class="fa-solid fa-paper-plane"></i></button>
-        </form>
       </div>
     </div>
   `;
