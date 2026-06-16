@@ -892,41 +892,35 @@ async function handleGoogleSignIn() {
   });
 
   try {
-    // Real Supabase OAuth redirect flow
     if (db.auth.signInWithOAuth) {
+      // Use fixed production URL — must match Supabase allowed redirect URLs
+      const redirectTo = 'https://campusconnectionsite.vercel.app';
+
       const { data, error } = await db.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + window.location.pathname,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
+          redirectTo,
+          queryParams: { access_type: 'offline', prompt: 'consent' }
         }
       });
 
       if (error) {
         console.warn('Google OAuth error:', error.message);
-        // Provider not enabled in Supabase → fall back to demo
         googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
-        simulateGoogleLogin();
+        alert('Google sign-in error: ' + error.message);
         return;
       }
-
-      // Success: Supabase redirects the browser to Google.
-      // Nothing more to do here — the page will navigate away.
-      // (buttons stay disabled intentionally during redirect)
+      // Browser navigates away to Google — buttons stay disabled
       return;
     }
 
-    // Local simulator fallback
     googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
-    simulateGoogleLogin();
+    alert('Google sign-in not available. Please use Magic Link instead.');
 
   } catch (err) {
     console.warn('Google OAuth exception:', err);
     googleBtns.forEach(btn => { btn.disabled = false; btn.innerHTML = restoreGoogleBtnHTML(); });
-    simulateGoogleLogin();
+    alert('Google sign-in failed: ' + (err.message || 'Unknown error'));
   }
 }
 
@@ -985,6 +979,66 @@ const googleLoginBtn = document.getElementById('google-login-btn');
 const googleSignupBtn = document.getElementById('google-signup-btn');
 if (googleLoginBtn) googleLoginBtn.addEventListener('click', handleGoogleSignIn);
 if (googleSignupBtn) googleSignupBtn.addEventListener('click', handleGoogleSignIn);
+
+// Wire up Magic Link button
+const magicLinkBtn = document.getElementById('magic-link-btn');
+if (magicLinkBtn) {
+  magicLinkBtn.addEventListener('click', async () => {
+    const emailInput = document.getElementById('login-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+    if (!email) {
+      alert('Please enter your email address above first, then click Magic Link.');
+      emailInput && emailInput.focus();
+      return;
+    }
+    magicLinkBtn.disabled = true;
+    magicLinkBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Sending link...';
+    try {
+      const { error } = await db.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: 'https://campusconnectionsite.vercel.app' }
+      });
+      magicLinkBtn.disabled = false;
+      magicLinkBtn.innerHTML = '<i class="fa-solid fa-envelope-open-text" style="color:#7c83fd;margin-right:8px;"></i> Send Magic Link (Passwordless)';
+      if (error) {
+        alert('Magic Link error: ' + error.message);
+      } else {
+        alert('✅ Magic link sent to ' + email + '! Check your inbox and click the link to sign in.');
+      }
+    } catch (err) {
+      magicLinkBtn.disabled = false;
+      magicLinkBtn.innerHTML = '<i class="fa-solid fa-envelope-open-text" style="color:#7c83fd;margin-right:8px;"></i> Send Magic Link (Passwordless)';
+      alert('Failed to send magic link: ' + (err.message || 'Unknown error'));
+    }
+  });
+}
+
+// Wire up Forgot Password link
+const forgotPasswordLink = document.getElementById('forgot-password-link');
+if (forgotPasswordLink) {
+  forgotPasswordLink.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('login-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+    if (!email) {
+      alert('Please enter your email address above first, then click "Forgot password?"');
+      emailInput && emailInput.focus();
+      return;
+    }
+    try {
+      const { error } = await db.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://campusconnectionsite.vercel.app'
+      });
+      if (error) {
+        alert('Password reset error: ' + error.message);
+      } else {
+        alert('✅ Password reset email sent to ' + email + '! Check your inbox and click the link to set a new password.');
+      }
+    } catch (err) {
+      alert('Failed to send reset email: ' + (err.message || 'Unknown error'));
+    }
+  });
+}
 
 // Toast helper
 function showToast(message, type = 'info') {
