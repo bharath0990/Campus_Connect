@@ -342,7 +342,7 @@ if (simulatePayBtn) {
 // ============================================================================
 
 const SUPABASE_URL = 'https://qynghqgbitcbczvfervg.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_u63gxFokU3EOzGIPFIIXCg_R0TTYaxt';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5bmdocWdiaXRjYmN6dmZlcnZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODQwMjQsImV4cCI6MjA5NjE2MDAyNH0.Bu5Zb5a9y2_mUfTB9TaPW1_fgPRce4VzLPgwWjucwJg';
 
 // Try real Supabase first; fall back to local simulator if unavailable
 let db;
