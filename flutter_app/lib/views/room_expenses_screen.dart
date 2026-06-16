@@ -494,9 +494,15 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                         icon: Icons.assignment_outlined,
                         label: 'Tenancy Contract',
                         onTap: () async {
+                          if (widget.bookingId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('No active booking ID provided.')),
+                            );
+                            return;
+                          }
                           final client = Supabase.instance.client;
                           try {
-                            final bRes = await client.from('bookings').select().eq('id', widget.bookingId).single();
+                            final bRes = await client.from('bookings').select().eq('id', widget.bookingId!).single();
                             final b = Booking.fromMap(bRes, widget.bookingId!);
                             if (!mounted) return;
                             
@@ -862,6 +868,8 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         ),
       ],
     );
+  }
+
   Widget _buildActionChip(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
     return ActionChip(
       avatar: Icon(icon, size: 16, color: Theme.of(context).primaryColor),
