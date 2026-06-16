@@ -1297,6 +1297,7 @@ h1, h2, h3, h4 {
   border-radius: 20px;
   min-height: 500px;
   width: 100%;
+  max-width: none;
   box-sizing: border-box;
   overflow: visible;
 }
@@ -1311,8 +1312,6 @@ h1, h2, h3, h4 {
 
 /* Chat fills full panel edge-to-edge by overriding parent padding */
 .dashboard-main-content .chat-window {
-  margin: -28px;
-  width: calc(100% + 56px);
   border-radius: 16px;
   max-width: none;
 }
