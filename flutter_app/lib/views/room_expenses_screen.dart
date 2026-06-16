@@ -111,25 +111,26 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
   void _loadLandlordBillsAndRoommates() async {
     final client = Supabase.instance.client;
     
-    // Fetch active roommates count and profiles
+    // Fetch confirmed/active roommates count and profiles — NO bots/fallback fake data
     try {
       final response = await client
           .from('bookings')
-          .select('student_id')
+          .select('student_id, status')
           .eq('room_id', widget.roomId)
-          .inFilter('status', ['Active', 'Requested']);
+          .inFilter('status', ['Active', 'Confirmed']); // Only confirmed occupants, NOT 'Requested'
       final roommateIds = (response as List).map((e) => e['student_id'].toString()).toSet();
+      // Always include current user if they have an active booking
       roommateIds.add(widget.currentUser.uid);
-      
+
       final usersResponse = await client
           .from('users')
           .select('id, name, profile_pic')
           .inFilter('id', roommateIds.toList());
-      
+
       final List<Map<String, dynamic>> loadedRoommates = [];
       for (var uid in roommateIds) {
-        final userDoc = (usersResponse as List).firstWhere(
-          (u) => u['id'].toString() == uid,
+        final userDoc = (usersResponse as List).cast<Map<String, dynamic>?>().firstWhere(
+          (u) => u != null && u['id'].toString() == uid,
           orElse: () => null,
         );
         String name = 'Roommate';
@@ -147,16 +148,16 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
 
       setState(() {
         _activeRoommates = loadedRoommates;
-        _activeRoommateCount = roommateIds.length;
+        // Split count = number of CONFIRMED occupants (minimum 1 = just the current user)
+        _activeRoommateCount = loadedRoommates.length > 0 ? loadedRoommates.length : 1;
       });
     } catch (e) {
+      // Fallback: only current user — NEVER inject fake bot roommates
       setState(() {
         _activeRoommates = [
           {'id': widget.currentUser.uid, 'name': 'You'},
-          {'id': 'felix_uid', 'name': 'Felix'},
-          {'id': 'aneka_uid', 'name': 'Aneka'},
         ];
-        _activeRoommateCount = 3;
+        _activeRoommateCount = 1;
       });
     }
 

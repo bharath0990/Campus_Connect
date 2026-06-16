@@ -82,6 +82,48 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   void _handleBookRoom(SupabaseService db) async {
+    final client = Supabase.instance.client;
+
+    // 1. Prevent double-booking: check if student already has an active/pending booking
+    try {
+      final existingBookings = await client
+          .from('bookings')
+          .select('id, status, rooms(title)')
+          .eq('student_id', widget.currentStudent.uid)
+          .inFilter('status', ['Active', 'Requested', 'Confirmed']);
+
+      if (existingBookings is List && existingBookings.isNotEmpty) {
+        final existingRoom = existingBookings[0]['rooms']?['title'] ?? 'another room';
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Already Booked'),
+              ],
+            ),
+            content: Text(
+              'You already have an active booking for "$existingRoom". '
+              'You must cancel your current booking before requesting a new room.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    } catch (e) {
+      debugPrint('Could not verify existing bookings: $e');
+    }
+
+    // 2. Proceed with booking
     final bookingId = await db.createBooking(
       widget.room.id,
       widget.currentStudent.uid,
@@ -121,6 +163,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       },
     );
   }
+
 
   void _handleChatOwner(ChatService chatService, AuthService authService) async {
     showDialog(

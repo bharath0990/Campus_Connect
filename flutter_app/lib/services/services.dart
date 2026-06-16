@@ -518,7 +518,7 @@ class SupabaseService {
     await _client.from('users').update({'saved_rooms': rooms}).eq('id', userId);
   }
     
-  // Stream active bookings for a room (occupied spaces)
+  // Stream active bookings for a room (occupied spaces — only Confirmed/Active, NOT pending Requested)
   Stream<List<Booking>> streamActiveBookingsForRoom(String roomId) {
     return _client
         .from('bookings')
@@ -527,7 +527,7 @@ class SupabaseService {
         .map((maps) {
           return maps
               .map((m) => Booking.fromMap(m, m['id'].toString()))
-              .where((b) => b.status == 'Active' || b.status == 'Requested')
+              .where((b) => b.status == 'Active' || b.status == 'Confirmed')
               .toList();
         });
   }
