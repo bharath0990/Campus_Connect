@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
@@ -643,7 +644,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                                     );
                                   } else if (isReceived) {
                                     return IconButton(
-                                      icon: const Icon(Icons.person_add_check_rounded, color: Colors.greenAccent, size: 28),
+                                      icon: const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 28),
                                       tooltip: 'Accept Friend Request',
                                       onPressed: () async {
                                         final db = Provider.of<SupabaseService>(context, listen: false);
