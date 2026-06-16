@@ -1,0 +1,15 @@
+{
+  "name": "campusstay-website-tests",
+  "version": "1.0.0",
+  "description": "E2E automation test suite for CampusStay Website UI",
+  "main": "test/campusstay-e2e.js",
+  "scripts": {
+    "test-e2e": "mocha test/campusstay-e2e.js --exit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "chromedriver": "^122.0.0",
+    "mocha": "^10.2.0",
+    "selenium-webdriver": "^4.16.0"
+  }
+}
