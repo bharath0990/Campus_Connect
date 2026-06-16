@@ -90,3 +90,17 @@ All application database actions conform to Postgres RLS policies:
 - **`public.rooms`**: Read permission is public to all authenticated accounts; Write operations are restricted to owners and admins.
 - **`public.chats` & `public.messages`**: Data streams are private to thread participant UUIDs.
 - **`public.bookings` & `public.payments`**: Students can insert requests and view their own transactions; Owners can view bookings made on their rooms.
+- **`public.deletion_requests`**: Owners can insert requests for their own rooms and view their status. Admins have full access to view, update, and process all requests.
+
+---
+
+## 🗑️ Real-time Room Deletion Requests Workflow
+
+CampusStay integrates a real-time room deletion workflow for administrative oversight:
+1. **Submit Deletion Request (Owner)**: From the Owner Dashboard (on both Mobile & Web), owners can request the deletion of any of their listed properties. They must provide a reason in the modal dialog.
+2. **Real-time Queue (Admin)**: The request is instantly delivered to the Admin Panel. Real-time subscriptions update the queue dynamically for all connected admins.
+3. **Admin Actions**:
+   - **Approve**: Permenantly deletes the room from the `rooms` table (cascade deletes associated bookings/payments) and updates request status to `approved`.
+   - **Reject**: Declines the request, specifying an admin note that is shown to the owner.
+4. **Owner Feedback**: The status updates are synchronized in real-time on the owner's dashboard card and listing history page.
+

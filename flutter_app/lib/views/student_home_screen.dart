@@ -2496,14 +2496,345 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
+  Widget _buildAdminPanelView(SupabaseService db) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: db.streamAllDeletionRequests(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final requests = snapshot.data ?? [];
+        final pending = requests.where((r) => r['status'] == 'pending').toList();
+        final processed = requests.where((r) => r['status'] != 'pending').toList();
+
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              TabBar(
+                labelColor: Theme.of(context).primaryColor,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Theme.of(context).primaryColor,
+                tabs: [
+                  Tab(text: 'Pending (${pending.length})'),
+                  Tab(text: 'Processed (${processed.length})'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildPendingRequestsList(db, pending),
+                    _buildProcessedRequestsList(processed),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPendingRequestsList(SupabaseService db, List<Map<String, dynamic>> pending) {
+    if (pending.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 64),
+            SizedBox(height: 16),
+            Text(
+              'No pending deletion requests!',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: pending.length,
+      itemBuilder: (context, index) {
+        final req = pending[index];
+        final requestId = req['id'] as String;
+        final roomId = req['room_id'] as String;
+        final roomTitle = req['room_title'] as String;
+        final roomAddress = req['room_address'] as String;
+        final reason = req['reason'] as String;
+        final ownerId = req['owner_id'] as String;
+        final noteController = TextEditingController();
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        roomTitle,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: const Text(
+                        'Pending',
+                        style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Address: $roomAddress',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 8),
+                FutureBuilder<CSUser?>(
+                  future: Provider.of<AuthService>(context, listen: false).fetchUserProfile(ownerId),
+                  builder: (context, userSnapshot) {
+                    final user = userSnapshot.data;
+                    final userName = user?.name ?? 'Loading...';
+                    final userEmail = user?.email ?? '';
+                    return Text(
+                      'Owner: $userName ($userEmail)',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Reason for Deletion:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        reason,
+                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Admin Note (Optional)',
+                    hintText: 'Add an optional note to show to the owner...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        onPressed: () async {
+                          final adminNote = noteController.text.trim().isNotEmpty
+                              ? noteController.text.trim()
+                              : 'Request rejected by admin.';
+                          await db.rejectDeletionRequest(
+                            requestId: requestId,
+                            adminNote: adminNote,
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Deletion request rejected.'), backgroundColor: Colors.orange),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.close),
+                        label: const Text('Reject'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () async {
+                          final confirmDelete = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Confirm Deletion'),
+                              content: Text('Are you sure you want to approve deletion and permanently delete "$roomTitle" from the database?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: const Text('Approve & Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirmDelete == true) {
+                            final adminNote = noteController.text.trim().isNotEmpty
+                                ? noteController.text.trim()
+                                : 'Deletion approved by admin.';
+                            await db.approveDeletionRequest(
+                              requestId: requestId,
+                              roomId: roomId,
+                              adminNote: adminNote,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Room deleted successfully.'), backgroundColor: Colors.green),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.check),
+                        label: const Text('Approve'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProcessedRequestsList(List<Map<String, dynamic>> processed) {
+    if (processed.isEmpty) {
+      return const Center(
+        child: Text('No processed requests yet.'),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: processed.length,
+      itemBuilder: (context, index) {
+        final req = processed[index];
+        final roomTitle = req['room_title'] as String;
+        final roomAddress = req['room_address'] as String;
+        final status = req['status'] as String;
+        final adminNotes = req['admin_notes'] as String?;
+        final ownerId = req['owner_id'] as String;
+
+        final isApproved = status == 'approved';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          color: isApproved ? Colors.green.shade50 : Colors.red.shade50,
+          child: ListTile(
+            title: Text(roomTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(roomAddress, style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 4),
+                FutureBuilder<CSUser?>(
+                  future: Provider.of<AuthService>(context, listen: false).fetchUserProfile(ownerId),
+                  builder: (context, userSnapshot) {
+                    final user = userSnapshot.data;
+                    return Text(
+                      'Owner: ${user?.name ?? "Loading..."}',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    );
+                  },
+                ),
+                if (adminNotes != null && adminNotes.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Notes: $adminNotes',
+                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isApproved ? Colors.green.shade900 : Colors.red.shade900),
+                  ),
+                ],
+              ],
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isApproved ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isApproved ? Colors.green : Colors.red),
+              ),
+              child: Text(
+                status.toUpperCase(),
+                style: TextStyle(
+                  color: isApproved ? Colors.green.shade900 : Colors.red.shade900,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<SupabaseService>(context, listen: false);
     final payment = Provider.of<PaymentService>(context, listen: false);
     final auth = Provider.of<AuthService>(context, listen: false);
 
+    final isAdmin = _currentUser.role == 'admin';
+
+    final List<BottomNavigationBarItem> navItems = [
+      if (isAdmin)
+        const BottomNavigationBarItem(icon: Icon(Icons.shield_rounded), label: 'Admin'),
+      const BottomNavigationBarItem(icon: Icon(Icons.feed_rounded), label: 'Rent Feed'),
+      const BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: 'Matches'),
+      const BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Bookings'),
+      const BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Tickets'),
+      const BottomNavigationBarItem(icon: Icon(Icons.forum_rounded), label: 'Messages'),
+      const BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+    ];
+
+    final List<Widget> navBodies = [
+      if (isAdmin) _buildAdminPanelView(db),
+      _buildFeedView(db),
+      RoommateMatchScreen(currentUser: _currentUser),
+      _buildBookingsView(db, payment),
+      _buildTicketsView(db),
+      ChatsListScreen(currentUserId: _currentUser.uid, currentUserName: _currentUser.name),
+      _buildProfileView(auth),
+    ];
+
+    final isChatScreen = navBodies[_currentIndex] is ChatsListScreen;
+
     return Scaffold(
-      appBar: _currentIndex == 4
+      appBar: isChatScreen
           ? null
           : AppBar(
               title: const Text('CampusStay Portal'),
@@ -2521,21 +2852,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             _currentIndex = idx;
           });
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.feed_rounded), label: 'Rent Feed'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: 'Matches'),
-          BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Bookings'),
-          BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Tickets'),
-          BottomNavigationBarItem(icon: Icon(Icons.forum_rounded), label: 'Messages'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
-        ],
+        items: navItems,
       ),
-      body: _currentIndex == 0 ? _buildFeedView(db)
-          : _currentIndex == 1 ? RoommateMatchScreen(currentUser: _currentUser)
-          : _currentIndex == 2 ? _buildBookingsView(db, payment)
-          : _currentIndex == 3 ? _buildTicketsView(db)
-          : _currentIndex == 4 ? ChatsListScreen(currentUserId: _currentUser.uid, currentUserName: _currentUser.name)
-          : _buildProfileView(auth),
+      body: navBodies[_currentIndex],
     );
   }
 }

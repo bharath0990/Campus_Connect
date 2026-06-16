@@ -220,6 +220,78 @@ class SupabaseService {
     await _client.from('rooms').insert(room.toMap());
   }
 
+  // Submit a room deletion request (Owner)
+  Future<void> requestRoomDeletion({
+    required String roomId,
+    required String ownerId,
+    required String roomTitle,
+    required String roomAddress,
+    required String reason,
+  }) async {
+    await _client.from('deletion_requests').insert({
+      'room_id': roomId,
+      'owner_id': ownerId,
+      'room_title': roomTitle,
+      'room_address': roomAddress,
+      'reason': reason,
+      'status': 'pending',
+    });
+  }
+
+  // Stream deletion requests for an owner
+  Stream<List<Map<String, dynamic>>> streamOwnerDeletionRequests(String ownerId) {
+    return _client
+        .from('deletion_requests')
+        .stream(primaryKey: ['id'])
+        .eq('owner_id', ownerId)
+        .map((list) => List<Map<String, dynamic>>.from(list));
+  }
+
+  // Stream all deletion requests (Admin)
+  Stream<List<Map<String, dynamic>>> streamAllDeletionRequests() {
+    return _client
+        .from('deletion_requests')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((list) => List<Map<String, dynamic>>.from(list));
+  }
+
+  // Approve deletion request and delete room (Admin)
+  Future<void> approveDeletionRequest({
+    required String requestId,
+    required String roomId,
+    String adminNote = 'Deletion approved by admin.',
+  }) async {
+    await _client.from('deletion_requests').update({
+      'status': 'approved',
+      'admin_notes': adminNote,
+      'processed_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', requestId);
+    await _client.from('rooms').delete().eq('id', roomId);
+  }
+
+  // Reject deletion request (Admin)
+  Future<void> rejectDeletionRequest({
+    required String requestId,
+    String adminNote = 'Request rejected by admin.',
+  }) async {
+    await _client.from('deletion_requests').update({
+      'status': 'rejected',
+      'admin_notes': adminNote,
+      'processed_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', requestId);
+  }
+
+  // Get deletion request status for a specific room
+  Future<String?> getRoomDeletionStatus(String roomId) async {
+    final res = await _client
+        .from('deletion_requests')
+        .select('status')
+        .eq('room_id', roomId)
+        .maybeSingle();
+    return res?['status']?.toString();
+  }
+
   // Get reviews for a room
   Future<List<Map<String, dynamic>>> getRoomReviews(String roomId) async {
     try {

@@ -1159,8 +1159,14 @@ function renderSidebar() {
     { id: 'tickets', label: 'Maintenance SLA', icon: 'fa-screwdriver-wrench' },
     { id: 'chat', label: 'Real-time Chat', icon: 'fa-comments' },
     { id: 'profile', label: 'My Profile', icon: 'fa-user-gear' }
+  ] : currentUserProfile.role === 'admin' ? [
+    { id: 'admin-panel', label: 'Admin Panel', icon: 'fa-shield-halved' },
+    { id: 'explore', label: 'Explore Rooms', icon: 'fa-hotel' },
+    { id: 'chat', label: 'All Chats', icon: 'fa-comments' },
+    { id: 'profile', label: 'My Profile', icon: 'fa-user-gear' }
   ] : [
     { id: 'listings', label: 'My Listings', icon: 'fa-house-medical' },
+    { id: 'deletion-requests', label: 'Deletion Requests', icon: 'fa-trash-can' },
     { id: 'approvals', label: 'Booking Requests', icon: 'fa-clipboard-check' },
     { id: 'bills', label: 'Utility Split Bills', icon: 'fa-file-invoice-dollar' },
     { id: 'sla', label: 'SLA Tickets', icon: 'fa-wrench' },
@@ -1200,11 +1206,14 @@ function renderActiveView(viewId) {
   
   // Owner Views
   else if (viewId === 'listings') loadOwnerListings(pane);
+  else if (viewId === 'deletion-requests') loadOwnerDeletionRequests(pane);
   else if (viewId === 'approvals') loadOwnerApprovals(pane);
   else if (viewId === 'bills') loadOwnerBills(pane);
   else if (viewId === 'sla') loadOwnerSLA(pane);
-  else if (viewId === 'owner-chat') loadChatView(pane); // Uses same chat UI
+  else if (viewId === 'owner-chat') loadChatView(pane);
   else if (viewId === 'trust') loadOwnerTrust(pane);
+  // Admin Views
+  else if (viewId === 'admin-panel') loadAdminPanel(pane);
 }
 
 // ============================================================================
@@ -2397,107 +2406,111 @@ async function loadProfileView(pane) {
 
 // 7.1 MY LISTINGS (OWNER)
 async function loadOwnerListings(pane) {
-  // Query flats listed by current owner
   const { data: rooms, error } = await db.from('rooms').select('*').eq('owner_id', currentUserProfile.id);
   if (error || !rooms) {
     pane.innerHTML = `<p style="color: var(--primary);">Error querying listings: ${error ? error.message : 'Unknown'}</p>`;
     return;
   }
 
+  // Fetch existing deletion requests for this owner
+  const { data: existingRequests } = await db.from('deletion_requests').select('room_id, status').eq('owner_id', currentUserProfile.id);
+  const requestMap = {};
+  (existingRequests || []).forEach(r => { requestMap[r.room_id] = r.status; });
+
   pane.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 24px;">
       <div>
-        <h2>Properties Listed For Students</h2>
-        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Manage flats, capacity details, map coordinates & monthly rents.</p>
-        
-        <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 16px;">
-          ${rooms.length === 0 ? `
-            <div style="text-align: center; padding: 40px; border: 1px dashed var(--border-glass); border-radius: 12px;">
-              <p style="color: var(--text-muted);">No flats listed yet.</p>
-            </div>
-          ` : rooms.map(room => `
-            <div class="ticket-row-card" style="display: flex; gap: 20px;">
-              <img src="${room.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;" alt="Room">
-              <div style="flex-grow: 1;">
-                <div style="display: flex; justify-content: space-between;">
-                  <h3 style="font-size: 16px;">${room.title}</h3>
-                  <span class="room-card-rent" style="font-size: 16px;">₹${room.rent.toLocaleString('en-IN')}/mo</span>
-                </div>
-                <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;"><i class="fa-solid fa-map-pin"></i> ${room.detailed_address}, ${room.city}</p>
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
-                  <span class="tag" style="font-size: 10px;">Max Capacity: ${room.capacity || 4} Students</span>
-                  <span class="tag" style="font-size: 10px; color: var(--green); border-color: rgba(0,245,160,0.2); background: rgba(0,245,160,0.03);">${room.verified ? 'Verified Flat' : 'Verification Pending'}</span>
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
+        <h2 style="font-size:22px;">Properties Listed For Students</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Manage flats, capacity, map coordinates & monthly rents. Request deletion for admin review.</p>
       </div>
 
-      <div>
-        <div class="glass-card" style="padding: 24px;">
-          <h3>List New Flat / PG</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px; margin-bottom: 20px;">Provide specifications to display flat in student feeds sorted by GPS distance.</p>
-          
-          <form id="add-room-form">
-            <div class="input-group">
-              <label>Property Name / Title</label>
-              <div class="input-wrapper">
-                <i class="fa-solid fa-hotel input-icon"></i>
-                <input type="text" id="room-title" placeholder="Stanza Living Pearl" required>
-              </div>
-            </div>
-            
-            <div class="inputs-grid" style="margin-bottom: 20px;">
-              <div class="input-group" style="margin: 0;">
-                <label>City Location</label>
-                <div class="input-wrapper">
-                  <i class="fa-solid fa-city input-icon"></i>
-                  <input type="text" id="room-city" placeholder="Goa" required>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        ${rooms.length === 0 ? `
+          <div style="text-align: center; padding: 40px; border: 1px dashed var(--border-glass); border-radius: 12px;">
+            <p style="color: var(--text-muted);">No flats listed yet. Use the "List New Flat" button to add your property.</p>
+          </div>
+        ` : rooms.map(room => {
+          const reqStatus = requestMap[room.id];
+          const deleteBtnHtml = reqStatus === 'pending'
+            ? `<span style="font-size:11px; background: rgba(255,152,0,0.1); color: #ff9800; border: 1px solid rgba(255,152,0,0.3); padding: 5px 12px; border-radius: 20px;"><i class="fa-solid fa-clock"></i> Deletion Pending Review</span>`
+            : reqStatus === 'approved'
+            ? `<span style="font-size:11px; background: rgba(46,125,50,0.1); color: var(--green); border: 1px solid rgba(46,125,50,0.3); padding: 5px 12px; border-radius: 20px;"><i class="fa-solid fa-check"></i> Deletion Approved</span>`
+            : reqStatus === 'rejected'
+            ? `<span style="font-size:11px; background: rgba(211,47,47,0.08); color: var(--primary); border: 1px solid rgba(211,47,47,0.2); padding: 5px 12px; border-radius: 20px;"><i class="fa-solid fa-ban"></i> Deletion Rejected</span>`
+            : `<button class="btn request-del-btn" data-room-id="${room.id}" data-room-title="${room.title}" data-room-addr="${room.detailed_address}" style="padding:6px 14px; font-size:12px; background: rgba(211,47,47,0.08); color: var(--primary); border: 1px solid rgba(211,47,47,0.25); border-radius: 20px;"><i class="fa-solid fa-trash-can"></i> Request Deletion</button>`;
+          return `
+            <div class="ticket-row-card" style="display: flex; gap: 20px; align-items: center;">
+              <img src="${room.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'}" style="width:90px; height:90px; object-fit:cover; border-radius:10px; flex-shrink:0;" alt="Room">
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+                  <h3 style="font-size: 16px; margin:0;">${room.title}</h3>
+                  <span style="font-size: 16px; color: var(--primary); font-weight: 700;">₹${room.rent.toLocaleString('en-IN')}/mo</span>
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;"><i class="fa-solid fa-map-pin"></i> ${room.detailed_address}, ${room.city}</p>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center;">
+                  <span class="tag" style="font-size: 10px;">Max: ${room.capacity || 4} Tenants</span>
+                  <span class="tag" style="font-size: 10px; color: ${room.verified ? 'var(--green)' : 'var(--text-muted)'};">${room.verified ? '✓ Verified' : '⏳ Pending Approval'}</span>
+                  ${deleteBtnHtml}
                 </div>
               </div>
-              <div class="input-group" style="margin: 0;">
-                <label>Monthly Rent (₹)</label>
-                <div class="input-wrapper">
-                  <i class="fa-solid fa-indian-rupee-sign input-icon"></i>
-                  <input type="number" id="room-rent" placeholder="12000" required>
-                </div>
-              </div>
             </div>
+          `;
+        }).join('')}
+      </div>
 
-            <div class="inputs-grid" style="margin-bottom: 20px;">
-              <div class="input-group" style="margin: 0;">
-                <label>Latitude Coordinates</label>
-                <div class="input-wrapper">
-                  <i class="fa-solid fa-location-dot input-icon"></i>
-                  <input type="number" step="0.000001" id="room-lat" placeholder="15.391" required>
-                </div>
-              </div>
-              <div class="input-group" style="margin: 0;">
-                <label>Longitude Coordinates</label>
-                <div class="input-wrapper">
-                  <i class="fa-solid fa-location-dot input-icon"></i>
-                  <input type="number" step="0.000001" id="room-lng" placeholder="73.878" required>
-                </div>
-              </div>
+      <!-- Add New Flat Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size:16px; margin-bottom:6px;"><i class="fa-solid fa-plus" style="color:var(--primary); margin-right:8px;"></i>List New Flat / PG</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Provide specifications to display flat in student feeds sorted by GPS distance.</p>
+        <form id="add-room-form">
+          <div class="input-group">
+            <label>Property Name / Title</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-hotel input-icon"></i>
+              <input type="text" id="room-title" placeholder="Stanza Living Pearl" required>
             </div>
-
-            <div class="input-group">
-              <label>Detailed Address</label>
-              <div class="input-wrapper">
-                <i class="fa-solid fa-map-pin input-icon"></i>
-                <input type="text" id="room-address" placeholder="Zuarinagar, Sancoale" required>
-              </div>
+          </div>
+          <div class="inputs-grid" style="margin-bottom: 20px;">
+            <div class="input-group" style="margin: 0;">
+              <label>City</label>
+              <div class="input-wrapper"><i class="fa-solid fa-city input-icon"></i><input type="text" id="room-city" placeholder="Goa" required></div>
             </div>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;">
-              <i class="fa-solid fa-plus"></i> Launch Listing
-            </button>
-          </form>
-        </div>
+            <div class="input-group" style="margin: 0;">
+              <label>Monthly Rent (₹)</label>
+              <div class="input-wrapper"><i class="fa-solid fa-indian-rupee-sign input-icon"></i><input type="number" id="room-rent" placeholder="12000" required></div>
+            </div>
+          </div>
+          <div class="inputs-grid" style="margin-bottom: 20px;">
+            <div class="input-group" style="margin: 0;">
+              <label>Latitude</label>
+              <div class="input-wrapper"><i class="fa-solid fa-location-dot input-icon"></i><input type="number" step="0.000001" id="room-lat" placeholder="15.391" required></div>
+            </div>
+            <div class="input-group" style="margin: 0;">
+              <label>Longitude</label>
+              <div class="input-wrapper"><i class="fa-solid fa-location-dot input-icon"></i><input type="number" step="0.000001" id="room-lng" placeholder="73.878" required></div>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Detailed Address</label>
+            <div class="input-wrapper"><i class="fa-solid fa-map-pin input-icon"></i><input type="text" id="room-address" placeholder="Zuarinagar, Sancoale" required></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;">
+            <i class="fa-solid fa-plus"></i> Launch Listing
+          </button>
+        </form>
       </div>
     </div>
   `;
+
+  // Request Deletion button handlers
+  document.querySelectorAll('.request-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const roomId = btn.dataset.roomId;
+      const roomTitle = btn.dataset.roomTitle;
+      const roomAddr = btn.dataset.roomAddr;
+      showDeletionRequestModal(roomId, roomTitle, roomAddr);
+    });
+  });
 
   document.getElementById('add-room-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2514,12 +2527,7 @@ async function loadOwnerListings(pane) {
 
     const { error } = await db.from('rooms').insert({
       owner_id: currentUserProfile.id,
-      title,
-      city,
-      rent,
-      latitude,
-      longitude,
-      detailed_address,
+      title, city, rent, latitude, longitude, detailed_address,
       description: 'Charming flat close to university campus with laundry and WiFi services.',
       amenities: ['WiFi', 'AC', 'Electricity split', 'Maid'],
       images: ['https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'],
@@ -2533,6 +2541,65 @@ async function loadOwnerListings(pane) {
       listBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Launch Listing';
     } else {
       alert("Flat listed successfully!");
+      renderActiveView('listings');
+    }
+  });
+}
+
+// Show modal for owner to submit deletion request
+function showDeletionRequestModal(roomId, roomTitle, roomAddr) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="glass-card" style="max-width: 440px; padding: 36px; border-radius: 20px; background: #fff;">
+      <h3 style="font-size:18px; margin-bottom:8px;"><i class="fa-solid fa-trash-can" style="color:var(--primary); margin-right:8px;"></i>Request Room Deletion</h3>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Your request will be reviewed by an admin before the room is permanently deleted.</p>
+      <div style="background:#f8f8f8; border-radius:10px; padding:12px; margin-bottom:20px; font-size:13px;">
+        <strong>${roomTitle}</strong><br>
+        <span style="color:var(--text-muted); font-size:12px;"><i class="fa-solid fa-map-pin"></i> ${roomAddr}</span>
+      </div>
+      <div class="input-group" style="margin-bottom:20px;">
+        <label>Reason for Deletion <span style="color:var(--primary);">*</span></label>
+        <textarea id="deletion-reason" placeholder="e.g. Property sold, renovating, no longer renting..." style="width:100%; padding:12px 14px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; font-size:13px; resize:vertical; min-height:90px; font-family:inherit; box-sizing:border-box;" required></textarea>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <button id="cancel-del-btn" class="btn btn-secondary" style="flex:1; justify-content:center;">Cancel</button>
+        <button id="submit-del-btn" class="btn btn-primary" style="flex:1; justify-content:center; background:var(--primary);">
+          <i class="fa-solid fa-paper-plane"></i> Submit Request
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('cancel-del-btn').addEventListener('click', () => overlay.remove());
+
+  document.getElementById('submit-del-btn').addEventListener('click', async () => {
+    const reason = document.getElementById('deletion-reason').value.trim();
+    if (!reason) {
+      alert('Please provide a reason for the deletion request.');
+      return;
+    }
+    const submitBtn = document.getElementById('submit-del-btn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
+
+    const { error } = await db.from('deletion_requests').insert({
+      room_id: roomId,
+      owner_id: currentUserProfile.id,
+      room_title: roomTitle,
+      room_address: roomAddr,
+      reason,
+      status: 'pending'
+    });
+
+    if (error) {
+      alert(`Error submitting request: ${error.message}`);
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Request';
+    } else {
+      overlay.remove();
+      showToast('✅ Deletion request submitted. Admin will review shortly.', 'success');
       renderActiveView('listings');
     }
   });
@@ -2861,3 +2928,205 @@ function loadOwnerTrust(pane) {
   `;
 }
 
+
+// ============================================================================
+// 8. OWNER DELETION REQUESTS VIEW
+// ============================================================================
+async function loadOwnerDeletionRequests(pane) {
+  const { data: requests, error } = await db.from('deletion_requests')
+    .select('*')
+    .eq('owner_id', currentUserProfile.id)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    pane.innerHTML = `<p style="color:var(--primary);">Error loading requests: ${error.message}</p>`;
+    return;
+  }
+
+  pane.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      <div>
+        <h2 style="font-size:22px;"><i class="fa-solid fa-trash-can" style="color:var(--primary); margin-right:10px;"></i>My Room Deletion Requests</h2>
+        <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">Track the status of your room deletion requests submitted for admin review.</p>
+      </div>
+
+      ${!requests || requests.length === 0 ? `
+        <div style="text-align:center; padding:50px; border:1px dashed var(--border-glass); border-radius:14px;">
+          <i class="fa-solid fa-inbox fa-3x" style="color:var(--text-muted); margin-bottom:16px;"></i>
+          <p style="color:var(--text-muted);">No deletion requests submitted yet.</p>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Go to <strong>My Listings</strong> tab and click "Request Deletion" on any room.</p>
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          ${requests.map(req => {
+            const statusColor = req.status === 'pending' ? '#ff9800' : req.status === 'approved' ? 'var(--green)' : 'var(--primary)';
+            const statusIcon = req.status === 'pending' ? 'fa-clock' : req.status === 'approved' ? 'fa-circle-check' : 'fa-circle-xmark';
+            return `
+              <div class="ticket-row-card">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                  <div>
+                    <h3 style="font-size:15px; margin:0;">${req.room_title}</h3>
+                    <p style="font-size:12px; color:var(--text-muted); margin-top:4px;"><i class="fa-solid fa-map-pin"></i> ${req.room_address}</p>
+                  </div>
+                  <span style="font-size:12px; color:${statusColor}; border:1px solid ${statusColor}33; padding:5px 14px; border-radius:20px; font-weight:600; white-space:nowrap;">
+                    <i class="fa-solid ${statusIcon}"></i> ${req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                  </span>
+                </div>
+                <div style="background:#f9f9f9; border-radius:8px; padding:12px; font-size:13px; margin-bottom:10px;"><strong>Reason:</strong> ${req.reason}</div>
+                ${req.admin_notes ? `<div style="background:rgba(211,47,47,0.05); border-radius:8px; padding:10px; font-size:12px; color:var(--primary); border:1px solid rgba(211,47,47,0.15);"><i class="fa-solid fa-comment-dots"></i> <strong>Admin Note:</strong> ${req.admin_notes}</div>` : ''}
+                <p style="font-size:11px; color:var(--text-muted); margin-top:10px;">Submitted: ${new Date(req.created_at).toLocaleString('en-IN')}</p>
+              </div>`;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+
+// ============================================================================
+// 9. ADMIN PANEL VIEW (REAL-TIME DELETION REQUEST QUEUE)
+// ============================================================================
+let _adminDeletionSubscription = null;
+
+async function loadAdminPanel(pane) {
+  if (_adminDeletionSubscription) {
+    _adminDeletionSubscription.unsubscribe();
+    _adminDeletionSubscription = null;
+  }
+
+  async function renderAdminQueue() {
+    const { data: requests, error } = await db.from('deletion_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      pane.innerHTML = `<p style="color:var(--primary);">Error: ${error.message}</p>`;
+      return;
+    }
+
+    // Fetch owner names
+    const ownerIds = [...new Set((requests || []).map(r => r.owner_id))];
+    const ownerMap = {};
+    if (ownerIds.length > 0) {
+      const { data: owners } = await db.from('users').select('id, name, email').in('id', ownerIds);
+      (owners || []).forEach(o => { ownerMap[o.id] = o; });
+    }
+
+    const pending = (requests || []).filter(r => r.status === 'pending');
+    const processed = (requests || []).filter(r => r.status !== 'pending');
+
+    pane.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2 style="font-size:22px;"><i class="fa-solid fa-shield-halved" style="color:var(--primary); margin-right:10px;"></i>Admin Panel</h2>
+            <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">Review and process room deletion requests in real-time. Changes are instant.</p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <span style="background:rgba(255,152,0,0.1); color:#ff9800; border:1px solid rgba(255,152,0,0.3); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-clock"></i> ${pending.length} Pending</span>
+            <span style="background:rgba(46,125,50,0.08); color:var(--green); border:1px solid rgba(46,125,50,0.2); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> ${processed.length} Processed</span>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="font-size:16px; margin-bottom:14px;">⏳ Pending Deletion Requests</h3>
+          ${pending.length === 0 ? `
+            <div style="text-align:center; padding:40px; border:1px dashed var(--border-glass); border-radius:14px;">
+              <i class="fa-solid fa-circle-check fa-2x" style="color:var(--green); margin-bottom:12px;"></i>
+              <p style="color:var(--text-muted);">No pending deletion requests. All clear!</p>
+            </div>
+          ` : `
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              ${pending.map(req => {
+                const owner = ownerMap[req.owner_id] || {};
+                return `
+                  <div class="ticket-row-card" style="border-left:4px solid #ff9800;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                      <div>
+                        <h3 style="font-size:16px; margin:0;">${req.room_title}</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin-top:4px;"><i class="fa-solid fa-map-pin"></i> ${req.room_address}</p>
+                        <p style="font-size:12px; color:var(--text-muted); margin-top:2px;"><i class="fa-solid fa-user"></i> ${owner.name || 'Owner'} (${owner.email || ''})</p>
+                      </div>
+                      <span style="font-size:11px; color:#ff9800; background:rgba(255,152,0,0.1); border:1px solid rgba(255,152,0,0.3); padding:4px 12px; border-radius:20px; font-weight:600;">⏳ Pending</span>
+                    </div>
+                    <div style="background:#fafafa; border-radius:8px; padding:12px; font-size:13px; margin-bottom:14px; border:1px solid rgba(0,0,0,0.06);"><strong>Reason:</strong> ${req.reason}</div>
+                    <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;"><i class="fa-solid fa-clock"></i> ${new Date(req.created_at).toLocaleString('en-IN')}</p>
+                    <div class="input-group" style="margin-bottom:12px;">
+                      <input type="text" id="note-${req.id}" placeholder="Admin note (optional, shown to owner)..." style="width:100%; padding:10px 14px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; font-size:13px; box-sizing:border-box; font-family:inherit;">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                      <button class="btn admin-approve-btn" data-req-id="${req.id}" data-room-id="${req.room_id}" style="flex:1; justify-content:center; background:rgba(46,125,50,0.1); color:var(--green); border:1px solid rgba(46,125,50,0.25); border-radius:10px; padding:12px; font-weight:700;">
+                        <i class="fa-solid fa-circle-check"></i> Approve & Delete Room
+                      </button>
+                      <button class="btn admin-reject-btn" data-req-id="${req.id}" style="flex:1; justify-content:center; background:rgba(211,47,47,0.08); color:var(--primary); border:1px solid rgba(211,47,47,0.2); border-radius:10px; padding:12px; font-weight:700;">
+                        <i class="fa-solid fa-circle-xmark"></i> Reject Request
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+
+        ${processed.length > 0 ? `
+          <div>
+            <h3 style="font-size:16px; margin-bottom:14px; color:var(--text-muted);">📋 Processed History</h3>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              ${processed.map(req => {
+                const isApproved = req.status === 'approved';
+                const owner = ownerMap[req.owner_id] || {};
+                return `<div style="padding:16px 20px; background:${isApproved ? 'rgba(46,125,50,0.04)' : 'rgba(211,47,47,0.03)'}; border:1px solid ${isApproved ? 'rgba(46,125,50,0.15)' : 'rgba(211,47,47,0.12)'}; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div>
+                    <p style="font-size:14px; font-weight:600; margin:0;">${req.room_title}</p>
+                    <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">${owner.name || ''} • ${new Date(req.created_at).toLocaleDateString('en-IN')}</p>
+                  </div>
+                  <span style="font-size:12px; color:${isApproved ? 'var(--green)' : 'var(--primary)'}; font-weight:700;"><i class="fa-solid ${isApproved ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${isApproved ? 'Approved' : 'Rejected'}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Approve
+    document.querySelectorAll('.admin-approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const reqId = btn.dataset.reqId;
+        const roomId = btn.dataset.roomId;
+        const note = document.getElementById(`note-${reqId}`)?.value.trim() || 'Deletion approved by admin.';
+        if (!confirm('Approve deletion? The room will be PERMANENTLY removed from the database.')) return;
+        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+        document.querySelector(`.admin-reject-btn[data-req-id="${reqId}"]`).disabled = true;
+        await db.from('deletion_requests').update({ status: 'approved', admin_notes: note, processed_at: new Date().toISOString() }).eq('id', reqId);
+        const { error } = await db.from('rooms').delete().eq('id', roomId);
+        if (error) alert(`Room deletion failed: ${error.message}`);
+        else showToast('✅ Room permanently deleted.', 'success');
+        renderAdminQueue();
+      });
+    });
+
+    // Reject
+    document.querySelectorAll('.admin-reject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const reqId = btn.dataset.reqId;
+        const note = document.getElementById(`note-${reqId}`)?.value.trim() || 'Request rejected by admin.';
+        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rejecting...';
+        document.querySelector(`.admin-approve-btn[data-req-id="${reqId}"]`).disabled = true;
+        await db.from('deletion_requests').update({ status: 'rejected', admin_notes: note, processed_at: new Date().toISOString() }).eq('id', reqId);
+        showToast('Request rejected. Owner notified.', 'info');
+        renderAdminQueue();
+      });
+    });
+  }
+
+  await renderAdminQueue();
+
+  // Real-time subscription
+  _adminDeletionSubscription = db
+    .channel('admin-deletion-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'deletion_requests' }, () => { renderAdminQueue(); })
+    .subscribe();
+}

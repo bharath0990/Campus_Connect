@@ -426,6 +426,132 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     );
   }
 
+  void _showRequestDeletionDialog(BuildContext context, SupabaseService db, Room room) {
+    final formKey = GlobalKey<FormState>();
+    final reasonController = TextEditingController();
+    bool isSaving = false;
+    String? saveError;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.delete_forever_rounded, color: Colors.red.shade700),
+                  const SizedBox(width: 8),
+                  const Text('Request Room Deletion'),
+                ],
+              ),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'This request will be sent to the administrator for review and approval. The room listing will be permanently deleted once approved.',
+                        style: TextStyle(fontSize: 13, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        room.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      Text(
+                        room.detailedAddress,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: reasonController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason for Deletion',
+                          hintText: 'e.g. Property no longer available, renovation, etc.',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a reason for deletion';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (saveError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          saveError!,
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (formKey.currentState!.validate()) {
+                            setStateDialog(() {
+                              isSaving = true;
+                              saveError = null;
+                            });
+                            try {
+                              await db.requestRoomDeletion(
+                                roomId: room.id,
+                                ownerId: widget.userId,
+                                roomTitle: room.title,
+                                roomAddress: room.detailedAddress,
+                                reason: reasonController.text.trim(),
+                              );
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Room deletion request submitted successfully!'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setStateDialog(() {
+                                isSaving = false;
+                                saveError = 'Error: ${e.toString()}';
+                              });
+                            }
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Submit Request'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _analyzeRoomPricing(BuildContext context, SupabaseService db, Room room) async {
     showDialog(
       context: context,
@@ -719,112 +845,201 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
         final rooms = snapshot.data ?? [];
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: db.streamOwnerDeletionRequests(widget.userId),
+          builder: (context, requestSnapshot) {
+            final requests = requestSnapshot.data ?? [];
+            final requestMap = {
+              for (var r in requests) r['room_id'] as String: r['status'] as String
+            };
+            final requestNotesMap = {
+              for (var r in requests) r['room_id'] as String: r['admin_notes'] as String?
+            };
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('My Accommodations', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () => _showAddRoomDialog(context, db),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Room'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('My Accommodations', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => _showAddRoomDialog(context, db),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Room'),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+                  
+                  if (rooms.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Center(
+                          child: Text('You have not added any accommodations yet. Use "Add Room" above to list PGs/rooms real-time.'),
+                        ),
+                      ),
+                    )
+                  else
+                    ... rooms.map((room) {
+                      final deletionStatus = requestMap[room.id];
+                      final adminNote = requestNotesMap[room.id];
+
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: room.images.isEmpty
+                                     ? Container(color: Colors.grey.shade100, width: 80, height: 80, child: const Icon(Icons.image))
+                                     : _buildRoomImage(room.images.first, width: 80, height: 80, fit: BoxFit.cover),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(room.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                    const SizedBox(height: 4),
+                                    Text('₹${room.rent}/mo • ${room.city}', style: TextStyle(color: Theme.of(context).primaryColor)),
+                                    const SizedBox(height: 4),
+                                    Text('Capacity: ${room.capacity} roommates', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text('Status: ${room.available ? (room.verified ? 'Listed (Active)' : 'Pending Approval') : 'Draft'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                    if (room.latitude != null && room.longitude != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text('GPS: (${room.latitude!.toStringAsFixed(4)}, ${room.longitude!.toStringAsFixed(4)})', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                    ],
+                                    if (deletionStatus != null) ...[
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: deletionStatus == 'pending'
+                                              ? Colors.orange.withOpacity(0.1)
+                                              : deletionStatus == 'approved'
+                                                  ? Colors.green.withOpacity(0.1)
+                                                  : Colors.red.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: deletionStatus == 'pending'
+                                                ? Colors.orange
+                                                : deletionStatus == 'approved'
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Deletion: ${deletionStatus.toUpperCase()}${adminNote != null && adminNote.isNotEmpty ? " ($adminNote)" : ""}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: deletionStatus == 'pending'
+                                                ? Colors.orange.shade800
+                                                : deletionStatus == 'approved'
+                                                    ? Colors.green.shade800
+                                                    : Colors.red.shade800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.receipt_long_rounded, color: Colors.green),
+                                    tooltip: 'Manage Bills',
+                                    onPressed: () => _showManageBillsDialog(context, db, room),
+                                  ),
+                                  const Text('Bills', style: TextStyle(fontSize: 10, color: Colors.green)),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.analytics_outlined, color: Colors.blueAccent),
+                                    tooltip: 'Analyze Pricing',
+                                    onPressed: () => _analyzeRoomPricing(context, db, room),
+                                  ),
+                                  const Text('Analyze', style: TextStyle(fontSize: 10, color: Colors.blueAccent)),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_note_rounded, color: Colors.orangeAccent),
+                                    tooltip: 'Edit Room',
+                                    onPressed: () => _showEditRoomDialog(context, db, room),
+                                  ),
+                                  const Text('Edit', style: TextStyle(fontSize: 10, color: Colors.orangeAccent)),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      deletionStatus == 'pending'
+                                          ? Icons.hourglass_empty_rounded
+                                          : Icons.delete_outline_rounded,
+                                      color: deletionStatus == 'pending'
+                                          ? Colors.orange
+                                          : deletionStatus == 'rejected'
+                                              ? Colors.red
+                                              : Colors.redAccent,
+                                    ),
+                                    tooltip: deletionStatus == 'pending'
+                                        ? 'Deletion Pending'
+                                        : 'Request Deletion',
+                                    onPressed: deletionStatus == 'pending'
+                                        ? null
+                                        : () => _showRequestDeletionDialog(context, db, room),
+                                  ),
+                                  Text(
+                                    deletionStatus == 'pending'
+                                        ? 'Pending'
+                                        : deletionStatus == 'rejected'
+                                            ? 'Rejected'
+                                            : 'Delete',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: deletionStatus == 'pending'
+                                          ? Colors.orange
+                                          : deletionStatus == 'rejected'
+                                              ? Colors.red
+                                              : Colors.redAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                 ],
               ),
-              const SizedBox(height: 16),
-              
-              if (rooms.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Center(
-                      child: Text('You have not added any accommodations yet. Use "Add Room" above to list PGs/rooms real-time.'),
-                    ),
-                  ),
-                )
-              else
-                ... rooms.map((room) {
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: room.images.isEmpty
-                                 ? Container(color: Colors.grey.shade100, width: 80, height: 80, child: const Icon(Icons.image))
-                                 : _buildRoomImage(room.images.first, width: 80, height: 80, fit: BoxFit.cover),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(room.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                const SizedBox(height: 4),
-                                Text('₹${room.rent}/mo • ${room.city}', style: TextStyle(color: Theme.of(context).primaryColor)),
-                                const SizedBox(height: 4),
-                                Text('Capacity: ${room.capacity} roommates', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 2),
-                                Text('Status: ${room.available ? (room.verified ? 'Listed (Active)' : 'Pending Approval') : 'Draft'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                if (room.latitude != null && room.longitude != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text('GPS: (${room.latitude!.toStringAsFixed(4)}, ${room.longitude!.toStringAsFixed(4)})', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.receipt_long_rounded, color: Colors.green),
-                                tooltip: 'Manage Bills',
-                                onPressed: () => _showManageBillsDialog(context, db, room),
-                              ),
-                              const Text('Bills', style: TextStyle(fontSize: 10, color: Colors.green)),
-                            ],
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.analytics_outlined, color: Colors.blueAccent),
-                                tooltip: 'Analyze Pricing',
-                                onPressed: () => _analyzeRoomPricing(context, db, room),
-                              ),
-                              const Text('Analyze', style: TextStyle(fontSize: 10, color: Colors.blueAccent)),
-                            ],
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_note_rounded, color: Colors.orangeAccent),
-                                tooltip: 'Edit Room',
-                                onPressed: () => _showEditRoomDialog(context, db, room),
-                              ),
-                              const Text('Edit', style: TextStyle(fontSize: 10, color: Colors.orangeAccent)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-            ],
-          ),
+            );
+          },
         );
       },
     );
