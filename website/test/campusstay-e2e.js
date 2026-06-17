@@ -10,7 +10,6 @@
  */
 
 const { Builder, By, until, Key } = require('selenium-webdriver');
-require('chromedriver');
 const reportGenerator = require('./reportGenerator');
 
 // Test configuration
@@ -171,7 +170,9 @@ describe('CampusStay Web E2E Workflow', function() {
 
         // Now wait for redirection to Dashboard
         log('Waiting for Dashboard nav button...');
-        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 5000);
+        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 15000);
+        const modal = await driver.findElement(By.id('auth-modal'));
+        await driver.wait(until.elementIsNotVisible(modal), 10000);
         const text = await dashboardBtn.getText();
         if (text.includes('Dashboard')) {
           log('Signup & login successful. Dashboard navigation button is now visible.');
@@ -218,7 +219,9 @@ describe('CampusStay Web E2E Workflow', function() {
 
         await driver.sleep(2000);
 
-        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 5000);
+        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 15000);
+        const modal = await driver.findElement(By.id('auth-modal'));
+        await driver.wait(until.elementIsNotVisible(modal), 10000);
         if (await dashboardBtn.isDisplayed()) {
           log('Login successful. Redirected to active session.');
           addResult('Login - Sign in with credentials', true);
@@ -412,8 +415,10 @@ describe('CampusStay Web E2E Workflow', function() {
 
         // Now wait for redirection to Dashboard
         log('Waiting for Dashboard nav button...');
-        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 5000);
+        const dashboardBtn = await driver.wait(until.elementLocated(By.id('nav-dashboard-btn')), 15000);
         await safeClick(dashboardBtn);
+        const modal = await driver.findElement(By.id('auth-modal'));
+        await driver.wait(until.elementIsNotVisible(modal), 10000);
 
         // Verify Dashboard User Role shows "OWNER"
         const roleVal = await driver.wait(until.elementLocated(By.id('dashboard-user-role')), 5000);

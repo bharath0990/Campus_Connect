@@ -10,7 +10,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "chromedriver": "^122.0.0",
     "mocha": "^10.2.0",
     "selenium-webdriver": "^4.16.0"
   }
