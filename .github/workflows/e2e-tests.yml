@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   test:
     name: Run E2E Automation Tests
@@ -16,12 +13,12 @@ jobs:
 
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: 20
+        node-version: 24
         cache: 'npm'
         cache-dependency-path: website/package-lock.json
 
@@ -51,7 +48,7 @@ jobs:
 
     - name: Upload Test Reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: campusstay-test-reports
         path: website/test/reports/
