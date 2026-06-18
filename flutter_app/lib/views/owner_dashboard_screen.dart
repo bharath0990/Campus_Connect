@@ -1164,13 +1164,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     final client = Supabase.instance.client;
     
     try {
-      final results = await Future.wait([
-        auth.fetchUserProfile(studentId),
-        client.from('rooms').select('title').eq('id', roomId).maybeSingle(),
-      ]);
+      final student = await auth.fetchUserProfile(studentId);
+      final roomData = await client.from('rooms').select('title').eq('id', roomId).maybeSingle();
       return {
-        'student': results[0] as CSUser?,
-        'roomTitle': (results[1] as Map?)?['title'] ?? 'Accommodation',
+        'student': student,
+        'roomTitle': (roomData as Map?)?['title'] ?? 'Accommodation',
       };
     } catch (e) {
       debugPrint("Error fetching request details: $e");
