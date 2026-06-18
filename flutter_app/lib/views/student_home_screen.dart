@@ -1237,32 +1237,35 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: _predefinedAvatars.map((url) {
-                    final isSelected = _profilePic == url;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _profilePic = url;
-                        });
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
-                            width: 3,
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: _predefinedAvatars.map((url) {
+                      final isSelected = _profilePic == url;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _profilePic = url;
+                          });
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 20,
+                            backgroundImage: NetworkImage(url),
                           ),
                         ),
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(url),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 
@@ -2617,7 +2620,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       const BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Tickets'),
       BottomNavigationBarItem(
         icon: StreamBuilder<int>(
-          stream: ChatService().streamTotalUnreadCount(_currentUser.uid),
+          stream: Provider.of<ChatService>(context, listen: false).streamTotalUnreadCount(_currentUser.uid),
           builder: (context, snapshot) {
             final unreadCount = snapshot.data ?? 0;
             return Badge(

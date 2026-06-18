@@ -211,9 +211,12 @@ CREATE TABLE IF NOT EXISTS public.roommate_friends (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   friend_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  status text DEFAULT 'pending' NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(user_id, friend_id)
 );
+
+ALTER TABLE public.roommate_friends ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending' NOT NULL;
 
 -- Enable RLS on roommate_friends
 ALTER TABLE public.roommate_friends ENABLE ROW LEVEL SECURITY;

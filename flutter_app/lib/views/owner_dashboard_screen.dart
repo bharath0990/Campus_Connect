@@ -12,6 +12,7 @@ import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'camera_scan_overlay.dart';
 import 'chats_list_screen.dart';
+import 'chat_room_screen.dart';
 import 'blocked_screen.dart';
 
 class OwnerDashboardScreen extends StatefulWidget {
@@ -1158,6 +1159,28 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     );
   }
 
+  Future<Map<String, dynamic>> _fetchRequestDetails(String studentId, String roomId) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final client = Supabase.instance.client;
+    
+    try {
+      final results = await Future.wait([
+        auth.fetchUserProfile(studentId),
+        client.from('rooms').select('title').eq('id', roomId).maybeSingle(),
+      ]);
+      return {
+        'student': results[0] as CSUser?,
+        'roomTitle': (results[1] as Map?)?['title'] ?? 'Accommodation',
+      };
+    } catch (e) {
+      debugPrint("Error fetching request details: $e");
+      return {
+        'student': null,
+        'roomTitle': 'Accommodation',
+      };
+    }
+  }
+
   Widget _buildRequestsTab(SupabaseService db) {
     return StreamBuilder<List<Booking>>(
       stream: db.streamBookings(widget.userId, true),
@@ -1166,10 +1189,23 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final bookings = snapshot.data ?? [];
+        final allBookings = snapshot.data ?? [];
+        final bookings = allBookings.where((b) => b.status == 'Requested').toList();
 
         if (bookings.isEmpty) {
-          return const Center(child: Text('No tenant booking requests pending.'));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.pending_actions_rounded, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No tenant booking requests pending.',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
         }
 
         return ListView.builder(
@@ -1177,87 +1213,721 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           itemCount: bookings.length,
           itemBuilder: (context, idx) {
             final req = bookings[idx];
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            return FutureBuilder<Map<String, dynamic>>(
+              future: _fetchRequestDetails(req.studentId, req.roomId),
+              builder: (context, detailsSnapshot) {
+                if (detailsSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  );
+                }
+
+                final details = detailsSnapshot.data;
+                final student = details?['student'] as CSUser?;
+                final roomTitle = details?['roomTitle'] as String? ?? 'Accommodation';
+
+                final studentName = student?.name ?? 'Student';
+                final studentPic = student?.profilePic ?? 'https://api.dicebear.com/7.x/adventurer/png?seed=${req.studentId}';
+                final studentEmail = student?.email ?? '';
+                final trustScore = student?.trustScore ?? 85;
+
+                return Card(
+                  elevation: 3,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color: Color(0xFFEEEEEE)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Tenant: ${req.studentId}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text('Rent: ₹${req.rent}', style: TextStyle(color: Theme.of(context).primaryColor)),
+                        // Student Profile Header
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 26,
+                              backgroundImage: NetworkImage(studentPic),
+                              backgroundColor: Colors.grey.shade100,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          studentName,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (student?.verified == true) ...[
+                                        const SizedBox(width: 4),
+                                        const Icon(Icons.verified_rounded, color: Colors.blueAccent, size: 16),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    student?.username != null && student!.username.isNotEmpty 
+                                        ? '@${student.username}' 
+                                        : studentEmail,
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: trustScore >= 90 ? Colors.green.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Trust Score: $trustScore%',
+                                style: TextStyle(
+                                  color: trustScore >= 90 ? Colors.green.shade700 : Colors.amber.shade800,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                        const SizedBox(height: 12),
+
+                        // Request & Contact Details
+                        Text(
+                          'Requested PG / Room:',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          roomTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Move-In Date',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  req.moveInDate.toString().split(' ')[0],
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'Proposed Rent',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₹${req.rent}/mo',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).primaryColor),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Student Habits / Preferences
+                        if (student != null) ...[
+                          Text(
+                            'Student Habits & Preferences:',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                          ),
+                          const SizedBox(height: 6),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildRequestBadge(
+                                  icon: Icons.bedtime_rounded,
+                                  label: student.preferences.sleepHabit,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 6),
+                                _buildRequestBadge(
+                                  icon: Icons.clean_hands_rounded,
+                                  label: student.preferences.cleanliness,
+                                  color: Colors.blueAccent,
+                                ),
+                                const SizedBox(width: 6),
+                                _buildRequestBadge(
+                                  icon: Icons.restaurant_rounded,
+                                  label: student.preferences.dietary,
+                                  color: Colors.green,
+                                ),
+                                const SizedBox(width: 6),
+                                _buildRequestBadge(
+                                  icon: Icons.people_rounded,
+                                  label: student.preferences.socialStatus,
+                                  color: Colors.purple,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // Message Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final chatService = Provider.of<ChatService>(context, listen: false);
+                              final chatRoomId = await chatService.getOrCreateChatRoom(
+                                req.studentId,
+                                widget.userId,
+                                roomTitle,
+                              );
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatRoomScreen(
+                                    chatRoomId: chatRoomId,
+                                    currentUserId: widget.userId,
+                                    currentUserName: widget.name,
+                                    peerName: studentName,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.forum_outlined, size: 16),
+                            label: const Text('Message Student to Negotiate', style: TextStyle(fontSize: 12)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Accept / Decline Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  // Update booking status to Cancelled / Rejected
+                                  await db.updateBookingStatus(req.id, 'Cancelled');
+                                  try {
+                                    await db.createNotification(
+                                      req.studentId,
+                                      'booking',
+                                      'Booking Request Declined',
+                                      'Your booking request for "$roomTitle" has been cancelled by the owner.',
+                                    );
+                                  } catch (e) {
+                                    debugPrint("Failed to notify student of cancellation: $e");
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  side: const BorderSide(color: Colors.redAccent),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: const Text('Decline', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                onPressed: () async {
+                                  // Accept booking, set status to Active
+                                  await db.updateBookingStatus(req.id, 'Active');
+                                  try {
+                                    await db.createNotification(
+                                      req.studentId,
+                                      'booking',
+                                      'Booking Request Accepted!',
+                                      'Your booking request for "$roomTitle" has been accepted by the owner! Please proceed to pay the deposit.',
+                                    );
+                                  } catch (e) {
+                                    debugPrint("Failed to notify student of acceptance: $e");
+                                  }
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Booking Accepted successfully!')),
+                                    );
+                                  }
+                                },
+                                child: const Text('Accept Request', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        )
                       ],
                     ),
-                    const Divider(color: Color(0xFFEEEEEE)),
-                    const SizedBox(height: 10),
-                    Text('Wishes to check-in. Move-in date: ${req.moveInDate.toString().split(' ')[0]}', style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    Text('Status: ${req.status}', style: TextStyle(color: req.status == 'Active' ? Colors.green : Colors.amber, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    if (req.status == 'Requested')
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                // Update booking status to Cancelled / Rejected
-                                await db.updateBookingStatus(req.id, 'Cancelled');
-                                try {
-                                  await db.createNotification(
-                                    req.studentId,
-                                    'booking',
-                                    'Booking Request Declined',
-                                    'Your booking request for the PG/room has been cancelled by the owner.',
-                                  );
-                                } catch (e) {
-                                  debugPrint("Failed to notify student of cancellation: $e");
-                                }
-                              },
-                              child: const Text('Reject'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () async {
-                                // Accept booking, set status to Active
-                                await db.updateBookingStatus(req.id, 'Active');
-                                try {
-                                  await db.createNotification(
-                                    req.studentId,
-                                    'booking',
-                                    'Booking Request Accepted!',
-                                    'Your booking request has been accepted by the owner! Please proceed to pay the deposit.',
-                                  );
-                                } catch (e) {
-                                  debugPrint("Failed to notify student of acceptance: $e");
-                                }
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Booking Accepted successfully!')),
-                                  );
-                                }
-                              },
-                              child: const Text('Accept Booking'),
-                            ),
-                          ),
-                        ],
-                      )
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
   }
+
+  Widget _buildRequestBadge({required IconData icon, required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(color: color.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<List<CSUser?>> _fetchTenants(List<Booking> bookings) async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    try {
+      return await Future.wait(bookings.map((b) => auth.fetchUserProfile(b.studentId)));
+    } catch (e) {
+      debugPrint("Error fetching tenant profiles: $e");
+      return [];
+    }
+  }
+
+  Widget _buildMyRoomsTab(SupabaseService db) {
+    return StreamBuilder<List<Booking>>(
+      stream: db.streamBookings(widget.userId, true),
+      builder: (context, bookingsSnapshot) {
+        if (bookingsSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final bookings = bookingsSnapshot.data ?? [];
+        final activeBookings = bookings.where((b) => b.status == 'Active').toList();
+        
+        if (activeBookings.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.meeting_room_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No occupied rooms at the moment.',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Approved student requests will appear here.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return StreamBuilder<List<Room>>(
+          stream: db.streamOwnerRooms(widget.userId),
+          builder: (context, roomsSnapshot) {
+            if (roomsSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final rooms = roomsSnapshot.data ?? [];
+            final roomMap = {for (var r in rooms) r.id: r};
+
+            return StreamBuilder<List<MaintenanceTicket>>(
+              stream: db.streamTickets(widget.userId, true),
+              builder: (context, ticketsSnapshot) {
+                final tickets = ticketsSnapshot.data ?? [];
+                
+                final Map<String, List<Booking>> roomBookingsMap = {};
+                for (var b in activeBookings) {
+                  roomBookingsMap.putIfAbsent(b.roomId, () => []).add(b);
+                }
+
+                final activeRoomIds = roomBookingsMap.keys.toList();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: activeRoomIds.length,
+                  itemBuilder: (context, idx) {
+                    final roomId = activeRoomIds[idx];
+                    final room = roomMap[roomId];
+                    final roomBookings = roomBookingsMap[roomId] ?? [];
+                    final roomTickets = tickets.where((t) => t.roomId == roomId && t.status != 'Resolved').toList();
+
+                    if (room == null) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return _buildOccupiedRoomCard(context, db, room, roomBookings, roomTickets);
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildOccupiedRoomCard(
+    BuildContext context,
+    SupabaseService db,
+    Room room,
+    List<Booking> roomBookings,
+    List<MaintenanceTicket> roomTickets,
+  ) {
+    final primaryColor = Theme.of(context).primaryColor;
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 20),
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Color(0xFFEFEFEF), width: 1),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: room.images.isEmpty
+                      ? Container(
+                          color: Colors.grey.shade100,
+                          width: 90,
+                          height: 90,
+                          child: const Icon(Icons.image, size: 36, color: Colors.grey),
+                        )
+                      : _buildRoomImage(room.images.first, width: 90, height: 90, fit: BoxFit.cover),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        room.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              room.detailedAddress,
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '₹${room.rent}/mo',
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontFamily: 'Outfit',
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Occupancy: ${roomBookings.length}/${room.capacity}',
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFEEEEEE)),
+            const SizedBox(height: 12),
+
+            if (roomTickets.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${roomTickets.length} pending maintenance ticket(s) unresolved.',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
+                      onPressed: () {
+                        setState(() {
+                          _tabIndex = 3;
+                        });
+                      },
+                      child: const Text('View', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    )
+                  ],
+                ),
+              ),
+            ],
+
+            const Text(
+              'Active Tenants',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Outfit'),
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<List<CSUser?>>(
+              future: _fetchTenants(roomBookings),
+              builder: (context, tenantSnapshot) {
+                if (tenantSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  );
+                }
+
+                final tenants = tenantSnapshot.data ?? [];
+                if (tenants.isEmpty || tenants.every((t) => t == null)) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No tenant profile data found.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: tenants.map((student) {
+                    if (student == null) return const SizedBox.shrink();
+                    final studentPic = student.profilePic.isNotEmpty
+                        ? student.profilePic
+                        : 'https://api.dicebear.com/7.x/adventurer/png?seed=${student.uid}';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200, width: 0.5),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundImage: NetworkImage(studentPic),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  student.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                Text(
+                                  student.email,
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: student.trustScore >= 90 ? Colors.green.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'TS: ${student.trustScore}%',
+                              style: TextStyle(
+                                color: student.trustScore >= 90 ? Colors.green.shade700 : Colors.amber.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: Icon(Icons.forum_outlined, size: 18, color: primaryColor),
+                            onPressed: () async {
+                              final chatService = Provider.of<ChatService>(context, listen: false);
+                              final chatRoomId = await chatService.getOrCreateChatRoom(
+                                student.uid,
+                                widget.userId,
+                                room.title,
+                              );
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatRoomScreen(
+                                    chatRoomId: chatRoomId,
+                                    currentUserId: widget.userId,
+                                    currentUserName: widget.name,
+                                    peerName: student.name,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => _showManageBillsDialog(context, db, room),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                    label: const Text(
+                      'Manage Bills',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primaryColor,
+                      side: BorderSide(color: primaryColor),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () async {
+                      final chatService = Provider.of<ChatService>(context, listen: false);
+                      final List<String> activeRoommateIds = roomBookings.map((b) => b.studentId).toList();
+                      activeRoommateIds.add(widget.userId);
+
+                      final chatRoomId = await chatService.getOrCreateRoommateGroupChat(
+                        room.id,
+                        room.title,
+                        activeRoommateIds,
+                      );
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatRoomScreen(
+                            chatRoomId: chatRoomId,
+                            currentUserId: widget.userId,
+                            currentUserName: widget.name,
+                            peerName: '${room.title} Group Chat',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.groups_rounded, size: 18),
+                    label: const Text(
+                      'Group Chat',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildTicketsTab(SupabaseService db) {
     return StreamBuilder<List<MaintenanceTicket>>(
@@ -2221,7 +2891,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     final auth = Provider.of<AuthService>(context, listen: false);
 
     return Scaffold(
-      appBar: _tabIndex == 3 
+      appBar: _tabIndex == 4 
           ? null 
           : AppBar(
               title: Text('${widget.name}\'s Hub'),
@@ -2236,6 +2906,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         onTap: (idx) => setState(() => _tabIndex = idx),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.roofing_rounded), label: 'Listings'),
+          BottomNavigationBarItem(icon: Icon(Icons.meeting_room_rounded), label: 'My Rooms'),
           BottomNavigationBarItem(icon: Icon(Icons.pending_actions_rounded), label: 'Requests'),
           BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Maintenance'),
           BottomNavigationBarItem(icon: Icon(Icons.forum_rounded), label: 'Messages'),
@@ -2243,9 +2914,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         ],
       ),
       body: _tabIndex == 0 ? _buildListingsTab(db)
-          : _tabIndex == 1 ? _buildRequestsTab(db)
-          : _tabIndex == 2 ? _buildTicketsTab(db)
-          : _tabIndex == 3 ? ChatsListScreen(currentUserId: widget.userId, currentUserName: widget.name)
+          : _tabIndex == 1 ? _buildMyRoomsTab(db)
+          : _tabIndex == 2 ? _buildRequestsTab(db)
+          : _tabIndex == 3 ? _buildTicketsTab(db)
+          : _tabIndex == 4 ? ChatsListScreen(currentUserId: widget.userId, currentUserName: widget.name)
           : _buildProfileTab(auth),
     );
   }

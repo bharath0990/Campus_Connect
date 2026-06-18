@@ -388,16 +388,24 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                       icon: const Icon(Icons.check_circle_rounded, color: Colors.green),
                       tooltip: 'Accept Request',
                       onPressed: () async {
-                        await db.acceptFriendRequest(widget.currentUser.uid, req.uid);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accepted friend request from ${req.name}')));
+                        final success = await db.acceptFriendRequest(widget.currentUser.uid, req.uid);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accepted friend request from ${req.name}')));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to accept request.'), backgroundColor: Colors.redAccent));
+                        }
                       },
                     ),
                     IconButton(
                       icon: const Icon(Icons.cancel_rounded, color: Colors.redAccent),
                       tooltip: 'Decline Request',
                       onPressed: () async {
-                        await db.removeFriend(widget.currentUser.uid, req.uid);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Declined request from ${req.name}')));
+                        final success = await db.removeFriend(widget.currentUser.uid, req.uid);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Declined request from ${req.name}')));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to decline request.'), backgroundColor: Colors.redAccent));
+                        }
                       },
                     ),
                   ],
@@ -458,12 +466,16 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         );
                       },
                     ),
-                    IconButton(
+                     IconButton(
                       icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
                       tooltip: 'Remove Friend',
                       onPressed: () async {
-                        await db.removeFriend(widget.currentUser.uid, friend.uid);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend')));
+                        final success = await db.removeFriend(widget.currentUser.uid, friend.uid);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove friend.'), backgroundColor: Colors.redAccent));
+                        }
                       },
                     ),
                   ],
@@ -614,8 +626,12 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         if (isFriend) {
                           return OutlinedButton.icon(
                             onPressed: () async {
-                              await db.removeFriend(widget.currentUser.uid, candidateUid);
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                              final success = await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove friend. Please try again.'), backgroundColor: Colors.redAccent));
+                              }
                             },
                             icon: const Icon(Icons.person_remove_rounded, color: Colors.redAccent, size: 16),
                             label: const Text('Remove Friend', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
@@ -629,8 +645,12 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         } else if (isSent) {
                           return OutlinedButton.icon(
                             onPressed: () async {
-                              await db.removeFriend(widget.currentUser.uid, candidateUid);
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
+                              final success = await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to cancel request. Please try again.'), backgroundColor: Colors.redAccent));
+                              }
                             },
                             icon: const Icon(Icons.pending_actions_rounded, color: Colors.orangeAccent, size: 16),
                             label: const Text('Cancel Request', style: TextStyle(color: Colors.orangeAccent, fontSize: 11)),
@@ -644,8 +664,12 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         } else if (isReceived) {
                           return ElevatedButton.icon(
                             onPressed: () async {
-                              await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
+                              final success = await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to accept request. Please try again.'), backgroundColor: Colors.redAccent));
+                              }
                             },
                             icon: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
                             label: const Text('Accept Request', style: TextStyle(color: Colors.white, fontSize: 11)),
@@ -659,8 +683,12 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         } else {
                           return ElevatedButton.icon(
                             onPressed: () async {
-                              await db.addFriend(widget.currentUser.uid, candidateUid);
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
+                              final success = await db.addFriend(widget.currentUser.uid, candidateUid);
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to send request. Check your connection.'), backgroundColor: Colors.redAccent));
+                              }
                             },
                             icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 16),
                             label: const Text('Add Friend', style: TextStyle(color: Colors.white, fontSize: 11)),
@@ -674,6 +702,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                         }
                       },
                     ),
+
                     const SizedBox(width: 8),
                     // Button 2: Message Button
                     ElevatedButton.icon(

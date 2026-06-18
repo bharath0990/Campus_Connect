@@ -23,20 +23,40 @@ void main() async {
 
 class CampusStayApp extends StatelessWidget {
   final bool supabaseRunning;
-  const CampusStayApp({super.key, this.supabaseRunning = true});
+  final AuthService? authService;
+  final SupabaseService? supabaseService;
+  final ChatService? chatService;
+  final PaymentService? paymentService;
+  final GoogleMapsService? googleMapsService;
+  final AadhaarVerificationService? aadhaarVerificationService;
+  final BankPaymentService? bankPaymentService;
+  final EmailService? emailService;
+
+  const CampusStayApp({
+    super.key,
+    this.supabaseRunning = true,
+    this.authService,
+    this.supabaseService,
+    this.chatService,
+    this.paymentService,
+    this.googleMapsService,
+    this.aadhaarVerificationService,
+    this.bankPaymentService,
+    this.emailService,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>(create: (_) => AuthService()),
-        Provider<SupabaseService>(create: (_) => SupabaseService()),
-        Provider<ChatService>(create: (_) => ChatService()),
-        Provider<PaymentService>(create: (_) => PaymentService()),
-        Provider<GoogleMapsService>(create: (_) => GoogleMapsService()),
-        Provider<AadhaarVerificationService>(create: (_) => AadhaarVerificationService()),
-        Provider<BankPaymentService>(create: (_) => BankPaymentService()),
-        Provider<EmailService>(create: (_) => EmailService()),
+        Provider<AuthService>(create: (_) => authService ?? AuthService()),
+        Provider<SupabaseService>(create: (_) => supabaseService ?? SupabaseService()),
+        Provider<ChatService>(create: (_) => chatService ?? ChatService()),
+        Provider<PaymentService>(create: (_) => paymentService ?? PaymentService()),
+        Provider<GoogleMapsService>(create: (_) => googleMapsService ?? GoogleMapsService()),
+        Provider<AadhaarVerificationService>(create: (_) => aadhaarVerificationService ?? AadhaarVerificationService()),
+        Provider<BankPaymentService>(create: (_) => bankPaymentService ?? BankPaymentService()),
+        Provider<EmailService>(create: (_) => emailService ?? EmailService()),
         Provider<bool>.value(value: supabaseRunning),
       ],
       child: MaterialApp(

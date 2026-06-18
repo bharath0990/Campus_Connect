@@ -678,7 +678,7 @@ class SupabaseService {
   }
 
   // Add Roommate Friend connection (starts as pending)
-  Future<void> addFriend(String userId, String friendId) async {
+  Future<bool> addFriend(String userId, String friendId) async {
     try {
       await _client.from('roommate_friends').insert({
         'user_id': userId,
@@ -692,13 +692,15 @@ class SupabaseService {
         '👥 New Friend Request',
         'You received a roommate friend request from a student. Open Matches to accept/decline.',
       );
+      return true;
     } catch (e) {
       debugPrint("Add friend failed: $e");
+      return false;
     }
   }
 
   // Accept Roommate Friend request
-  Future<void> acceptFriendRequest(String userId, String friendId) async {
+  Future<bool> acceptFriendRequest(String userId, String friendId) async {
     try {
       await _client.from('roommate_friends')
           .update({'status': 'accepted'})
@@ -712,19 +714,23 @@ class SupabaseService {
         '👥 Friend Request Accepted!',
         'Your roommate friend request has been accepted! You can now start chat negotiations.',
       );
+      return true;
     } catch (e) {
       debugPrint("Accept friend request failed: $e");
+      return false;
     }
   }
 
   // Remove Roommate Friend connection (or cancel/decline a request)
-  Future<void> removeFriend(String userId, String friendId) async {
+  Future<bool> removeFriend(String userId, String friendId) async {
     try {
       await _client.from('roommate_friends')
           .delete()
           .or('and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)');
+      return true;
     } catch (e) {
       debugPrint("Remove friend failed: $e");
+      return false;
     }
   }
 
