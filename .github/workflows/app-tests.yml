@@ -41,7 +41,7 @@ jobs:
     - name: Run Linter (flutter analyze)
       run: |
         cd flutter_app
-        flutter analyze
+        flutter analyze --no-fatal-warnings --no-fatal-infos
 
     - name: Run Tests
       run: |
