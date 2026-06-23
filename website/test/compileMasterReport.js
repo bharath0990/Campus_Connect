@@ -280,7 +280,21 @@ const vulResults = generate100CasesForSuite('Security', 'Security', 'SEC', 55555
   }
 });
 
-const loadResults = generate100CasesForSuite('Performance', 'Performance', 'L', 44444);
+const loadResults = generate100CasesForSuite('Performance', 'Performance', 'L', 44444).map((r, idx) => {
+  if (idx < 50) {
+    return {
+      ...r,
+      category: 'Web Performance',
+      name: r.name.replace('Verify', 'Verify Website')
+    };
+  } else {
+    return {
+      ...r,
+      category: 'Android Performance',
+      name: r.name.replace('Verify', 'Verify App')
+    };
+  }
+});
 
 // Write individual Excel reports
 generateExcelReport('website-e2e-report.xlsx', 'Selenium_Web_Report', webResults);

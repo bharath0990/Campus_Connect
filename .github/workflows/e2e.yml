@@ -146,10 +146,14 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Check Asset Sizes
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Run Web & App Performance Audits
       run: |
-        echo "Checking asset sizes..."
-        ls -lh website/app.js website/styles.css
+        node website/test/runLoadTests.js
 
   master_report:
     name: Compile Master Report & Deploy
