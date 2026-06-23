@@ -444,6 +444,30 @@ void main() {
           return file.path;
         },
       );
+
+      // Mock Pigeon File Selector channels for Desktop (used during headless linux integration testing)
+      final List<String> mockPathsList = [file.path];
+      
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('dev.flutter.pigeon.file_selector_linux.FileSelectorApi.showFileChooser'),
+        (MethodCall methodCall) async {
+          return mockPathsList;
+        },
+      );
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('dev.flutter.pigeon.file_selector_windows.FileSelectorApi.showFileChooser'),
+        (MethodCall methodCall) async {
+          return mockPathsList;
+        },
+      );
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('dev.flutter.pigeon.file_selector_macos.FileSelectorApi.showFileChooser'),
+        (MethodCall methodCall) async {
+          return mockPathsList;
+        },
+      );
     });
 
     testWidgets('CampusStay App Complete E2E Workflow', (WidgetTester tester) async {
