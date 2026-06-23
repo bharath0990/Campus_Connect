@@ -235,6 +235,11 @@ class MockSupabaseService extends SupabaseService {
   }
 
   @override
+  Future<String> uploadRoomImage(String fileName, List<int> bytes) async {
+    return 'https://api.dicebear.com/7.x/adventurer/png?seed=$fileName';
+  }
+
+  @override
   Stream<List<Booking>> streamBookings(String userId, bool isOwner) async* {
     yield _bookings.where((b) => isOwner ? (b.ownerId == userId) : (b.studentId == userId)).toList();
     yield* _bookingsController.stream.map((list) {
@@ -451,6 +456,9 @@ void main() {
         (MethodCall methodCall) async {
           if (methodCall.method == 'isLocationServiceEnabled') {
             return true;
+          }
+          if (methodCall.method == 'checkPermission' || methodCall.method == 'requestPermission') {
+            return 3; // LocationPermission.always
           }
           if (methodCall.method == 'getCurrentPosition') {
             return <String, dynamic>{
@@ -723,22 +731,29 @@ class MockHttpClient implements io.HttpClient {
         invocation.memberName == #headUrl ||
         invocation.memberName == #patch ||
         invocation.memberName == #patchUrl) {
-      return Future.value(MockHttpClientRequest());
+      final Uri? uri = invocation.positionalArguments.isNotEmpty && invocation.positionalArguments.first is Uri
+          ? invocation.positionalArguments.first as Uri
+          : null;
+      final bool isGeocode = uri != null && uri.host.contains('nominatim');
+      return Future.value(MockHttpClientRequest(isGeocode: isGeocode));
     }
     return null;
   }
 }
 
 class MockHttpClientRequest implements io.HttpClientRequest {
+  final bool isGeocode;
+  MockHttpClientRequest({this.isGeocode = false});
+
   @override
   io.HttpHeaders get headers => MockHttpHeaders();
 
   @override
-  Future<io.HttpClientResponse> get done => Future.value(MockHttpClientResponse());
+  Future<io.HttpClientResponse> get done => Future.value(MockHttpClientResponse(isGeocode: isGeocode));
 
   @override
   Future<io.HttpClientResponse> close() {
-    return Future.value(MockHttpClientResponse());
+    return Future.value(MockHttpClientResponse(isGeocode: isGeocode));
   }
 
   @override
@@ -751,6 +766,9 @@ class MockHttpHeaders implements io.HttpHeaders {
 }
 
 class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientResponse {
+  final bool isGeocode;
+  MockHttpClientResponse({this.isGeocode = false});
+
   static const List<int> _transparentImage = [
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
     0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
@@ -763,7 +781,9 @@ class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientR
   @override
   int get statusCode => 200;
   @override
-  int get contentLength => _transparentImage.length;
+  int get contentLength => isGeocode
+      ? utf8.encode('[{"lat":"15.2993","lon":"74.1240"}]').length
+      : _transparentImage.length;
   @override
   io.HttpHeaders get headers => MockHttpHeaders();
   @override
@@ -785,7 +805,10 @@ class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientR
         void Function()? onDone,
         bool? cancelOnError,
       }) {
-    return Stream<List<int>>.fromIterable([_transparentImage]).listen(
+    final List<int> responseBytes = isGeocode
+        ? utf8.encode('[{"lat":"15.2993","lon":"74.1240"}]')
+        : _transparentImage;
+    return Stream<List<int>>.fromIterable([responseBytes]).listen(
       onData,
       onError: onError,
       onDone: onDone,
