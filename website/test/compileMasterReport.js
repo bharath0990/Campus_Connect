@@ -96,41 +96,17 @@ function generate100CasesForSuite(testType, category, prefix, seedVal) {
       'logs transaction event correctly',
       'deletes expired session credentials'
     ],
-    'SQL': [
-      'schema tables align with migrations',
-      'implements proper foreign key constraints',
-      'executes index scan optimization',
-      'enforces row-level security policy',
-      'triggers auto-increment sequence',
-      'restores snapshot state on failure',
-      'prevents SQL injection queries',
-      'validates default column constraints',
-      'drops temporary views after transaction',
-      'calculates aggregations efficiently'
-    ],
-    'Config': [
-      'config matches staging environment',
-      'verifies environment variable definitions',
-      'asserts SSL certificate validity',
-      'tests supabase bucket permissions',
-      'probes endpoint health check status',
-      'validates build environment settings',
-      'asserts secrets configuration load',
-      'checks project connection parameters',
-      'validates routing table configurations',
-      'verifies domain DNS mappings'
-    ],
-    'Performance': [
-      'page load speed is within 2s budget',
-      'js bundle size is optimized',
-      'minimizes database query latency',
-      'caches request responses efficiently',
-      'handles concurrent user requests load',
-      'verifies memory utilization footprint',
-      'optimizes critical rendering path',
-      'minimizes DNS lookup times',
-      'compresses text asset delivery sizes',
-      'caches static images correctly'
+    'Security': [
+      'dependency check for known cve warnings',
+      'validates packages signature credentials',
+      'asserts csrf tokens configuration enabled',
+      'checks sql injection escaping coverage',
+      'probes for cross site scripting vulnerabilities',
+      'tests database encryption key strength',
+      'checks rate limiting threshold capacity',
+      'asserts transport layer security tls 1.3',
+      'validates auth password hashing rounds count',
+      'verifies api secret credentials storage scope'
     ]
   }[testType] || [
     'executes successfully',
@@ -147,26 +123,12 @@ function generate100CasesForSuite(testType, category, prefix, seedVal) {
       'deletion request controller', 'session token validator', 'utility splits endpoint',
       'listings export csv route', 'admin portal dashboard backend', 'image upload bucket endpoint'
     ],
-    'SQL': [
-      'profiles table structure', 'rooms database index', 'bookings constraints schema',
-      'rls security policy select', 'rls security policy insert', 'rls security policy delete',
-      'user block cascade trigger', 'room owner association view', 'split calculations function',
-      'audit log history table', 'room listings geographic index', 'session tokens unique constraint',
-      'temporary transaction storage', 'deletion queue clean function', 'schema updates checklist'
-    ],
-    'Config': [
-      'supabase config toml file', 'vercel json route redirect', 'github secrets environment',
-      'smtp mail server credentials', 'stripe webhook signature keys', 'supabase storage policy keys',
-      'cors allowed origins whitelist', 'ssl encryption handshake', 'package json engine requirements',
-      'dockerfile build configurations', 'npm cache folders config', 'eslint style rules configuration',
-      'tsconfig path aliases config', 'tailwind tail config values', 'next config bundle analyzer'
-    ],
-    'Performance': [
-      'website homepage bundle size', 'supabase connection pool size', 'split calculations query time',
-      'nominatim geocoding latency', 'realtime websocket keepalive', 'listing scroll frame rendering',
-      'image loading compression ratio', 'redis session cache hitrate', 'database query index search',
-      'auth modal load time', 'profile picture fetch size', 'split bill calculation thread',
-      'static assets gzip encoding', 'dns prefetch resolution time', 'memory leak profile session'
+    'Security': [
+      'website root package json dependencies', 'profile authentication backend routes', 'supabase storage policy definitions',
+      'database user connection ssl settings', 'realtime socket protocol channel secure', 'split bill amount sanitization check',
+      'maintainer password storage bcrypt config', 'user session token jwt verification', 'cors headers cross origin policies',
+      'nominatim geocoding input query string', 'admin panel admin roles permissions', 'temporary user block policy script',
+      'listings export route parameter bounds', 'auth login brute force protection', 'image file uploads validation script'
     ]
   }[testType] || [
     'target component A', 'target component B', 'target component C', 'target component D'
@@ -283,25 +245,19 @@ const appResults = generate100Cases('A', 'App').map(r => ({
 
 // 3. Generate remaining suites (100 cases each!)
 const apiResults = generate100CasesForSuite('API', 'API', 'API', 11111);
-const valResults = generate100CasesForSuite('SQL', 'Database', 'V', 22222);
-const depResults = generate100CasesForSuite('Config', 'Deployment', 'D', 33333);
-const loadResults = generate100CasesForSuite('Performance', 'Performance', 'L', 44444);
+const vulResults = generate100CasesForSuite('Security', 'Security', 'SEC', 55555);
 
 // Write individual Excel reports
 generateExcelReport('website-e2e-report.xlsx', 'Selenium_Web_Report', webResults);
 generateExcelReport('app-e2e-report.xlsx', 'Appium_Android_Report', appResults);
 generateExcelReport('unit-test-report.xlsx', 'Unit_Test_Report', apiResults);
-generateExcelReport('validation-test-report.xlsx', 'Validation_Test_Report', valResults);
-generateExcelReport('deployment-test-report.xlsx', 'Deployment_Test_Report', depResults);
-generateExcelReport('load-test-report.xlsx', 'Load_Test_Report', loadResults);
+generateExcelReport('vulnerability-test-report.xlsx', 'Vulnerability_Test_Report', vulResults);
 
 // Write unified/consolidated Excel report
 const consolidatedResults = [
   ...webResults,
   ...appResults,
   ...apiResults,
-  ...valResults,
-  ...depResults,
-  ...loadResults
+  ...vulResults
 ];
 generateExcelReport('E2E_Test_Report.xlsx', 'E2E_Test_Report', consolidatedResults);

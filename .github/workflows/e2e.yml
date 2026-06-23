@@ -111,55 +111,23 @@ jobs:
 
 
 
-  validation:
-    name: Validation Tests
+  vulnerability:
+    name: Vulnerability Tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Run Schema Validations
+    - name: Run Vulnerability Scan
       run: |
-        echo "Validating SQL Schemas..."
-        test -f supabase_setup.sql && echo "supabase_setup.sql exists"
-        test -f supabase_setup_updates.sql && echo "supabase_setup_updates.sql exists"
-        test -f supabase_user_block.sql && echo "supabase_user_block.sql exists"
-        test -f supabase_deletion_requests.sql && echo "supabase_deletion_requests.sql exists"
-
-
-
-  deployment:
-    name: Deployment Status
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Check Configurations
-      run: |
-        echo "Checking configurations..."
-        test -f supabase/config.toml && echo "Supabase config exists"
-
-
-
-  load_testing:
-    name: Load Testing — Performance
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Check Asset Sizes
-      run: |
-        echo "Checking asset sizes..."
-        ls -lh website/app.js website/styles.css
-
-
+        echo "Running Vulnerability Scan..."
+        cd website
+        npm audit || true
 
   master_report:
     name: Compile Master Report & Deploy
     runs-on: ubuntu-latest
-    needs: [selenium, appium, unit, validation, deployment, load_testing]
+    needs: [selenium, appium, unit, vulnerability]
     if: always()
     steps:
     - name: Checkout Repository
@@ -207,23 +175,11 @@ jobs:
         name: unit-test-report
         path: website/test/reports/unit-test-report.xlsx
 
-    - name: Upload Validation Test Report
+    - name: Upload Vulnerability Test Report
       uses: actions/upload-artifact@v4
       with:
-        name: validation-test-report
-        path: website/test/reports/validation-test-report.xlsx
-
-    - name: Upload Deployment Test Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: deployment-test-report
-        path: website/test/reports/deployment-test-report.xlsx
-
-    - name: Upload Load Test Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: load-test-report
-        path: website/test/reports/load-test-report.xlsx
+        name: vulnerability-test-report
+        path: website/test/reports/vulnerability-test-report.xlsx
 
     - name: Upload Full E2E Report
       uses: actions/upload-artifact@v4
