@@ -445,36 +445,52 @@ void main() {
         },
       );
 
+      // Mock Geolocator platform channel calls
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('flutter.baseflow.com/geolocator'),
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'isLocationServiceEnabled') {
+            return true;
+          }
+          if (methodCall.method == 'getCurrentPosition') {
+            return <String, dynamic>{
+              'latitude': 15.2993,
+              'longitude': 74.1240,
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+              'accuracy': 15.0,
+              'altitude': 0.0,
+              'heading': 0.0,
+              'speed': 0.0,
+              'speed_accuracy': 0.0,
+              'is_mocked': true,
+            };
+          }
+          return null;
+        },
+      );
+
       // Mock Pigeon File Selector channels for Desktop (used during headless linux integration testing)
       final List<String> mockPathsList = [file.path];
+      const StandardMessageCodec codec = StandardMessageCodec();
       
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
-        const BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.file_selector_linux.FileSelectorApi.showFileChooser',
-          StandardMessageCodec(),
-        ),
-        (Object? message) async {
-          return <Object?>[mockPathsList];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMessageHandler(
+        'dev.flutter.pigeon.file_selector_linux.FileSelectorApi.showFileChooser',
+        (ByteData? message) async {
+          return codec.encodeMessage(<Object?>[mockPathsList]);
         },
       );
 
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
-        const BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.file_selector_windows.FileSelectorApi.showFileChooser',
-          StandardMessageCodec(),
-        ),
-        (Object? message) async {
-          return <Object?>[mockPathsList];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMessageHandler(
+        'dev.flutter.pigeon.file_selector_windows.FileSelectorApi.showFileChooser',
+        (ByteData? message) async {
+          return codec.encodeMessage(<Object?>[mockPathsList]);
         },
       );
 
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
-        const BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.file_selector_macos.FileSelectorApi.showFileChooser',
-          StandardMessageCodec(),
-        ),
-        (Object? message) async {
-          return <Object?>[mockPathsList];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMessageHandler(
+        'dev.flutter.pigeon.file_selector_macos.FileSelectorApi.showFileChooser',
+        (ByteData? message) async {
+          return codec.encodeMessage(<Object?>[mockPathsList]);
         },
       );
     });
