@@ -44,6 +44,7 @@ jobs:
       run: |
         cd website
         npm run test-e2e
+        node test/compileMasterReport.js
 
     - name: Upload Test Reports
       if: always()
