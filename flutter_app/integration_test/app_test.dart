@@ -659,171 +659,46 @@ class MockHttpOverrides extends io.HttpOverrides {
 
 class MockHttpClient implements io.HttpClient {
   @override
-  bool autoUncompress = true;
-  @override
-  Duration? connectionTimeout;
-  @override
-  Duration idleTimeout = const Duration(seconds: 15);
-  @override
-  int? maxConnectionsPerHost;
-  @override
-  String? userAgent;
-
-  @override
-  void addCredentials(Uri url, String realm, io.HttpClientCredentials credentials) {}
-  @override
-  void addProxyCredentials(String host, int port, String realm, io.HttpClientCredentials credentials) {}
-  @override
-  void setProxyUrl(String Function(Uri url)? url) {}
-  @override
-  void setAuthenticate(Future<bool> Function(Uri url, String scheme, String realm)? f) {}
-  @override
-  void setAuthenticateProxy(Future<bool> Function(String host, int port, String scheme, String realm)? f) {}
-
-  @override
-  Future<io.HttpClientRequest> open(String method, String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #getUrl || 
+        invocation.memberName == #openUrl || 
+        invocation.memberName == #open ||
+        invocation.memberName == #get ||
+        invocation.memberName == #post ||
+        invocation.memberName == #postUrl ||
+        invocation.memberName == #put ||
+        invocation.memberName == #putUrl ||
+        invocation.memberName == #delete ||
+        invocation.memberName == #deleteUrl ||
+        invocation.memberName == #head ||
+        invocation.memberName == #headUrl ||
+        invocation.memberName == #patch ||
+        invocation.memberName == #patchUrl) {
+      return Future.value(MockHttpClientRequest());
+    }
+    return null;
   }
-  @override
-  Future<io.HttpClientRequest> openUrl(String method, Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> get(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> getUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> post(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> postUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> put(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> putUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> delete(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> deleteUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> head(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> headUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> patch(String host, int port, String path) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  Future<io.HttpClientRequest> patchUrl(Uri url) {
-    return Future.value(MockHttpClientRequest());
-  }
-  @override
-  void close({bool force = false}) {}
 }
 
 class MockHttpClientRequest implements io.HttpClientRequest {
   @override
-  bool bufferOutput = true;
-  @override
-  int contentLength = 0;
-  @override
-  Encoding encoding = utf8;
-  @override
-  bool followRedirects = true;
-  @override
-  int maxRedirects = 5;
-  @override
-  bool persistentConnection = true;
-  @override
   io.HttpHeaders get headers => MockHttpHeaders();
-  @override
-  io.HttpClientConnectionInfo? get connectionInfo => null;
-  @override
-  List<io.Cookie> get cookies => [];
-  @override
-  Future<io.HttpClientResponse> get done => Future.value(MockHttpClientResponse());
-  @override
-  String get method => '';
-  @override
-  Uri get uri => Uri();
 
   @override
-  void add(List<int> data) {}
-  @override
-  void addError(Object error, [StackTrace? stackTrace]) {}
-  @override
-  Future<void> addStream(Stream<List<int>> stream) => Future.value();
+  Future<io.HttpClientResponse> get done => Future.value(MockHttpClientResponse());
+
   @override
   Future<io.HttpClientResponse> close() {
     return Future.value(MockHttpClientResponse());
   }
+
   @override
-  void write(Object? obj) {}
-  @override
-  void writeAll(Iterable objects, [String separator = ""]) {}
-  @override
-  void writeCharCode(int charCode) {}
-  @override
-  void writeln([Object? obj = ""]) {}
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class MockHttpHeaders implements io.HttpHeaders {
   @override
-  bool chunkedTransferEncoding = false;
-  @override
-  int contentLength = 0;
-  @override
-  io.ContentType? contentType;
-  @override
-  DateTime? date;
-  @override
-  DateTime? expires;
-  @override
-  String? host;
-  @override
-  DateTime? ifModifiedSince;
-  @override
-  bool persistentConnection = true;
-  @override
-  int port = 80;
-
-  @override
-  List<String>? operator [](String name) => [];
-  @override
-  void add(String name, Object value, {bool preserveHeaderCase = false}) {}
-  @override
-  void clear() {}
-  @override
-  void forEach(void Function(String name, List<String> values) f) {}
-  @override
-  String? value(String name) => null;
-  @override
-  void noFolding(String name) {}
-  @override
-  void remove(String name, Object value) {}
-  @override
-  void removeAll(String name) {}
-  @override
-  void set(String name, Object value, {bool preserveHeaderCase = false}) {}
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientResponse {
@@ -839,20 +714,9 @@ class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientR
   @override
   int get statusCode => 200;
   @override
-  String get reasonPhrase => 'OK';
-  @override
   int get contentLength => _transparentImage.length;
   @override
-  io.HttpClientResponseCompressionState get compressionState =>
-      io.HttpClientResponseCompressionState.notCompressed;
-  @override
   io.HttpHeaders get headers => MockHttpHeaders();
-  @override
-  bool get isRedirect => false;
-  @override
-  List<io.RedirectInfo> get redirects => [];
-  @override
-  List<io.Cookie> get cookies => [];
 
   @override
   Future<io.HttpClientResponse> redirect([String? method, Uri? url, bool? followRedirects]) =>
@@ -874,7 +738,5 @@ class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientR
   }
 
   @override
-  Future<io.Socket> detachSocket() => throw UnimplementedError();
-  @override
-  bool get persistentConnection => true;
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
