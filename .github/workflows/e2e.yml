@@ -150,10 +150,39 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 20
+        cache: 'npm'
+        cache-dependency-path: website/package-lock.json
 
-    - name: Run Web & App Performance Audits
+    - name: Install Dependencies
       run: |
-        node website/test/runLoadTests.js
+        cd website
+        npm ci
+
+    - name: Start Website Server
+      run: |
+        cd website
+        node serve.js &
+        # Wait for server to boot up on port 8080
+        for i in {1..10}; do
+          curl -s http://localhost:8080 && break
+          echo "Waiting for server to start..."
+          sleep 1
+        done
+
+    - name: Setup k6
+      uses: grafana/setup-k6-action@v1
+
+    - name: Run k6 Load Test
+      run: |
+        mkdir -p website/test/reports
+        k6 run website/test/k6-load-test.js --summary-export=website/test/reports/k6-summary.json
+
+    - name: Upload Load Raw Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: load-test-raw-results
+        path: website/test/reports/
 
   master_report:
     name: Compile Master Report & Deploy
@@ -180,6 +209,13 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: selenium-raw-results
+        path: website/test/reports/
+      continue-on-error: true
+
+    - name: Download Load Reports
+      uses: actions/download-artifact@v4
+      with:
+        name: load-test-raw-results
         path: website/test/reports/
       continue-on-error: true
 
