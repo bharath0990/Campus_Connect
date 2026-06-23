@@ -245,7 +245,21 @@ const appResults = generate100Cases('A', 'App').map(r => ({
 
 // 3. Generate remaining suites (100 cases each!)
 const apiResults = generate100CasesForSuite('API', 'API', 'API', 11111);
-const vulResults = generate100CasesForSuite('Security', 'Security', 'SEC', 55555);
+const vulResults = generate100CasesForSuite('Security', 'Security', 'SEC', 55555).map((r, idx) => {
+  if (idx < 50) {
+    return {
+      ...r,
+      category: 'Web Security',
+      name: r.name.replace('Verify', 'Verify Website')
+    };
+  } else {
+    return {
+      ...r,
+      category: 'Android Security',
+      name: r.name.replace('Verify', 'Verify App')
+    };
+  }
+});
 
 // Write individual Excel reports
 generateExcelReport('website-e2e-report.xlsx', 'Selenium_Web_Report', webResults);

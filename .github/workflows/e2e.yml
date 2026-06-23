@@ -118,9 +118,24 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Run Vulnerability Scan
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        cache: true
+
+    - name: Install App Dependencies
       run: |
-        echo "Running Vulnerability Scan..."
+        cd flutter_app
+        flutter pub get
+
+    - name: Run App Vulnerability Scan
+      run: |
+        cd flutter_app
+        flutter pub outdated --mode=security || true
+
+    - name: Run Website Vulnerability Scan
+      run: |
         cd website
         npm audit || true
 
