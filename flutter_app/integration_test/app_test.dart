@@ -741,6 +741,13 @@ class MockHttpClientResponse extends Stream<List<int>> implements io.HttpClientR
   int get contentLength => _transparentImage.length;
   @override
   io.HttpHeaders get headers => MockHttpHeaders();
+  @override
+  io.HttpClientResponseCompressionState get compressionState =>
+      io.HttpClientResponseCompressionState.notCompressed;
+  @override
+  bool get isRedirect => false;
+  @override
+  bool get persistentConnection => true;
 
   @override
   Future<io.HttpClientResponse> redirect([String? method, Uri? url, bool? followRedirects]) =>
