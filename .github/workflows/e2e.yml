@@ -49,7 +49,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: campusstay-test-reports
+        name: selenium-raw-results
         path: website/test/reports/
 
   appium:
@@ -179,7 +179,7 @@ jobs:
     - name: Download Test Reports
       uses: actions/download-artifact@v4
       with:
-        name: campusstay-test-reports
+        name: selenium-raw-results
         path: website/test/reports/
       continue-on-error: true
 
@@ -188,8 +188,44 @@ jobs:
         cd website
         node test/compileMasterReport.js
 
-    - name: Upload Master Report
+    - name: Upload Selenium Web Report
       uses: actions/upload-artifact@v4
       with:
-        name: campusstay-master-report
-        path: website/test/reports/
+        name: selenium-web-report
+        path: website/test/reports/website-e2e-report.xlsx
+
+    - name: Upload Appium Android Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: appium-android-report
+        path: website/test/reports/app-e2e-report.xlsx
+
+    - name: Upload Unit Test Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-report
+        path: website/test/reports/unit-test-report.xlsx
+
+    - name: Upload Validation Test Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: validation-test-report
+        path: website/test/reports/validation-test-report.xlsx
+
+    - name: Upload Deployment Test Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-test-report
+        path: website/test/reports/deployment-test-report.xlsx
+
+    - name: Upload Load Test Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: load-test-report
+        path: website/test/reports/load-test-report.xlsx
+
+    - name: Upload Full E2E Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: full-e2e-report
+        path: website/test/reports/master-report.html

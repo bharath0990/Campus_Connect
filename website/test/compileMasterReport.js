@@ -156,6 +156,48 @@ function generateExcelFile(filename, prefix, platformName) {
   return results;
 }
 
+// Helper to generate Excel files for non-E2E suites
+function generateExcelForSuite(filename, title, results) {
+  const wb = XLSX.utils.book_new();
+  
+  const summaryData = [
+    [`CampusStay ${title} Execution Report`],
+    [],
+    ["Metric", "Value"],
+    ["Total Test Cases", results.length],
+    ["Passed Cases", results.filter(r => r.passed).length],
+    ["Failed Cases", results.filter(r => !r.passed).length],
+    ["Success Rate", `${((results.filter(r => r.passed).length / results.length) * 100).toFixed(1)}%`],
+    ["Execution Date", new Date().toLocaleString()]
+  ];
+  
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Execution Summary");
+  
+  const detailHeaders = ["Test ID", "Test Case Name", "Status", "Duration (Seconds)"];
+  const detailRows = results.map(r => [
+    r.id,
+    r.name,
+    r.passed ? "PASSED" : "FAILED",
+    r.duration
+  ]);
+  
+  const wsDetails = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+  
+  wsDetails['!cols'] = [
+    { wch: 15 },
+    { wch: 50 },
+    { wch: 15 },
+    { wch: 18 }
+  ];
+  
+  XLSX.utils.book_append_sheet(wb, wsDetails, "Detailed Results");
+  
+  const filePath = path.join(REPORT_DIR, filename);
+  XLSX.writeFile(wb, filePath);
+  console.log(`Excel Report generated successfully: ${filePath}`);
+}
+
 // Generate the Excel reports
 const webResults = generateExcelFile('website-e2e-report.xlsx', 'W', 'Website');
 const appResults = generateExcelFile('app-e2e-report.xlsx', 'A', 'App');
@@ -186,6 +228,12 @@ const loadResults = [
   { id: 'TC-L002', name: 'Page load speed optimization check', passed: true, duration: 0.88 },
   { id: 'TC-L003', name: 'Database indexing performance', passed: true, duration: 0.42 }
 ];
+
+// Generate Excel reports for remaining suites
+generateExcelForSuite('unit-test-report.xlsx', 'Unit Tests - API', apiResults);
+generateExcelForSuite('validation-test-report.xlsx', 'Validation Tests', valResults);
+generateExcelForSuite('deployment-test-report.xlsx', 'Deployment Status', depResults);
+generateExcelForSuite('load-test-report.xlsx', 'Load Testing - Performance', loadResults);
 
 // Calculate unified metrics
 const suites = [
@@ -485,6 +533,14 @@ const htmlContent = `
           downloadLinkHtml = '<a href="website-e2e-report.xlsx" class="download-btn">📥 Download Excel (100 Samples)</a>';
         } else if (s.name.includes('Android')) {
           downloadLinkHtml = '<a href="app-e2e-report.xlsx" class="download-btn">📥 Download Excel (100 Samples)</a>';
+        } else if (s.name.includes('Unit')) {
+          downloadLinkHtml = '<a href="unit-test-report.xlsx" class="download-btn">📥 Download Excel</a>';
+        } else if (s.name.includes('Validation')) {
+          downloadLinkHtml = '<a href="validation-test-report.xlsx" class="download-btn">📥 Download Excel</a>';
+        } else if (s.name.includes('Deployment')) {
+          downloadLinkHtml = '<a href="deployment-test-report.xlsx" class="download-btn">📥 Download Excel</a>';
+        } else if (s.name.includes('Load Testing')) {
+          downloadLinkHtml = '<a href="load-test-report.xlsx" class="download-btn">📥 Download Excel</a>';
         }
         
         return `
