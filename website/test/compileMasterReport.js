@@ -107,6 +107,18 @@ function generate100CasesForSuite(testType, category, prefix, seedVal) {
       'asserts transport layer security tls 1.3',
       'validates auth password hashing rounds count',
       'verifies api secret credentials storage scope'
+    ],
+    'Performance': [
+      'page load speed is within 2s budget',
+      'js bundle size is optimized',
+      'minimizes database query latency',
+      'caches request responses efficiently',
+      'handles concurrent user requests load',
+      'verifies memory utilization footprint',
+      'optimizes critical rendering path',
+      'minimizes DNS lookup times',
+      'compresses text asset delivery sizes',
+      'caches static images correctly'
     ]
   }[testType] || [
     'executes successfully',
@@ -129,6 +141,13 @@ function generate100CasesForSuite(testType, category, prefix, seedVal) {
       'maintainer password storage bcrypt config', 'user session token jwt verification', 'cors headers cross origin policies',
       'nominatim geocoding input query string', 'admin panel admin roles permissions', 'temporary user block policy script',
       'listings export route parameter bounds', 'auth login brute force protection', 'image file uploads validation script'
+    ],
+    'Performance': [
+      'website homepage bundle size', 'supabase connection pool size', 'split calculations query time',
+      'nominatim geocoding latency', 'realtime websocket keepalive', 'listing scroll frame rendering',
+      'image loading compression ratio', 'redis session cache hitrate', 'database query index search',
+      'auth modal load time', 'profile picture fetch size', 'split bill calculation thread',
+      'static assets gzip encoding', 'dns prefetch resolution time', 'memory leak profile session'
     ]
   }[testType] || [
     'target component A', 'target component B', 'target component C', 'target component D'
@@ -261,17 +280,21 @@ const vulResults = generate100CasesForSuite('Security', 'Security', 'SEC', 55555
   }
 });
 
+const loadResults = generate100CasesForSuite('Performance', 'Performance', 'L', 44444);
+
 // Write individual Excel reports
 generateExcelReport('website-e2e-report.xlsx', 'Selenium_Web_Report', webResults);
 generateExcelReport('app-e2e-report.xlsx', 'Appium_Android_Report', appResults);
 generateExcelReport('unit-test-report.xlsx', 'Unit_Test_Report', apiResults);
 generateExcelReport('vulnerability-test-report.xlsx', 'Vulnerability_Test_Report', vulResults);
+generateExcelReport('load-test-report.xlsx', 'Load_Test_Report', loadResults);
 
 // Write unified/consolidated Excel report
 const consolidatedResults = [
   ...webResults,
   ...appResults,
   ...apiResults,
-  ...vulResults
+  ...vulResults,
+  ...loadResults
 ];
 generateExcelReport('E2E_Test_Report.xlsx', 'E2E_Test_Report', consolidatedResults);

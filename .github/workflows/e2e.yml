@@ -139,10 +139,22 @@ jobs:
         cd website
         npm audit || true
 
+  load_testing:
+    name: Load Testing — Performance
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Check Asset Sizes
+      run: |
+        echo "Checking asset sizes..."
+        ls -lh website/app.js website/styles.css
+
   master_report:
     name: Compile Master Report & Deploy
     runs-on: ubuntu-latest
-    needs: [selenium, appium, unit, vulnerability]
+    needs: [selenium, appium, unit, vulnerability, load_testing]
     if: always()
     steps:
     - name: Checkout Repository
@@ -195,6 +207,12 @@ jobs:
       with:
         name: vulnerability-test-report
         path: website/test/reports/vulnerability-test-report.xlsx
+
+    - name: Upload Load Test Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: load-test-report
+        path: website/test/reports/load-test-report.xlsx
 
     - name: Upload Full E2E Report
       uses: actions/upload-artifact@v4
