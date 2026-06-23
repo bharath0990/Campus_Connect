@@ -357,6 +357,23 @@ class ReportGenerator {
     );
     this.log(`HTML Report generated: ${path.join(reportDir, 'test-report.html')}`);
 
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      try {
+        let md = `## 🌐 Selenium Web Tests — CampusStay\n\n`;
+        md += `| ID | Test Name | Status |\n`;
+        md += `| --- | --- | --- |\n`;
+        this.results.forEach((r, index) => {
+          const id = `TC-W${String(index + 1).padStart(3, '0')}`;
+          const statusIcon = r.passed ? ':white_check_mark: PASS' : ':x: FAIL';
+          md += `| ${id} | ${r.testName} | ${statusIcon} |\n`;
+        });
+        fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
+        this.log(`Added results to GitHub Step Summary`);
+      } catch (err) {
+        this.log(`Failed to write to GitHub Step Summary: ${err.message}`, 'WARNING');
+      }
+    }
+
     return report;
   }
 }

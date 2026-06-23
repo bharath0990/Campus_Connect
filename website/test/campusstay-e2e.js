@@ -12,8 +12,8 @@
 const { Builder, By, until, Key } = require('selenium-webdriver');
 const reportGenerator = require('./reportGenerator');
 
-// Test configuration
-const BASE_URL = 'http://localhost:8080';
+const PORT = process.env.PORT || 8080;
+const BASE_URL = `http://localhost:${PORT}`;
 const TEST_USER = {
   name: `Student Test ${Date.now()}`,
   email: `student_test_${Date.now()}@campusstay.com`,
