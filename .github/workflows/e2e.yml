@@ -90,7 +90,7 @@ jobs:
       run: |
         cd flutter_app
         # Run widget/integration tests headlessly on host environment
-        flutter test integration_test/app_test.dart
+        flutter test -d flutter-tester integration_test/app_test.dart
 
     - name: Generate App Test Summary
       if: always()
