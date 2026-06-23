@@ -448,24 +448,33 @@ void main() {
       // Mock Pigeon File Selector channels for Desktop (used during headless linux integration testing)
       final List<String> mockPathsList = [file.path];
       
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('dev.flutter.pigeon.file_selector_linux.FileSelectorApi.showFileChooser'),
-        (MethodCall methodCall) async {
-          return mockPathsList;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
+        const BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.file_selector_linux.FileSelectorApi.showFileChooser',
+          StandardMessageCodec(),
+        ),
+        (Object? message) async {
+          return <Object?>[mockPathsList];
         },
       );
 
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('dev.flutter.pigeon.file_selector_windows.FileSelectorApi.showFileChooser'),
-        (MethodCall methodCall) async {
-          return mockPathsList;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
+        const BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.file_selector_windows.FileSelectorApi.showFileChooser',
+          StandardMessageCodec(),
+        ),
+        (Object? message) async {
+          return <Object?>[mockPathsList];
         },
       );
 
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('dev.flutter.pigeon.file_selector_macos.FileSelectorApi.showFileChooser'),
-        (MethodCall methodCall) async {
-          return mockPathsList;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockDecodedMessageHandler<Object?>(
+        const BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.file_selector_macos.FileSelectorApi.showFileChooser',
+          StandardMessageCodec(),
+        ),
+        (Object? message) async {
+          return <Object?>[mockPathsList];
         },
       );
     });
