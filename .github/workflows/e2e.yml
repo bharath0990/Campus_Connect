@@ -228,4 +228,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: full-e2e-report
-        path: website/test/reports/master-report.html
+        path: website/test/reports/E2E_Test_Report.xlsx
