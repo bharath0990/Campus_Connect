@@ -539,35 +539,3 @@ const htmlContent = `
 
 fs.writeFileSync(path.join(REPORT_DIR, 'master-report.html'), htmlContent);
 console.log(`Master HTML Report compiled successfully at: ${path.join(REPORT_DIR, 'master-report.html')}`);
-
-// 3. Write summary to GITHUB_STEP_SUMMARY if available
-if (process.env.GITHUB_STEP_SUMMARY) {
-  try {
-    let summaryMd = `\n# 📊 CampusStay E2E Master Automation Summary\n\n`;
-    summaryMd += `| Suite Name | Total Cases | Passed | Failed | Success Rate | Downloads |\n`;
-    summaryMd += `| --- | --- | --- | --- | --- | --- |\n`;
-    
-    suites.forEach(s => {
-      const tot = s.results.length;
-      const pas = s.results.filter(r => r.passed).length;
-      const fai = s.results.filter(r => !r.passed).length;
-      const rate = ((pas / tot) * 100).toFixed(0) + '%';
-      const statusIcon = fai === 0 ? '🟢' : '🔴';
-      
-      let downloadLink = '-';
-      if (s.name.includes('Website')) {
-        downloadLink = '[website-e2e-report.xlsx](https://github.com/github/workspace/raw/main/website/test/reports/website-e2e-report.xlsx)'; // Placeholder or relative download path link representation
-      } else if (s.name.includes('Android')) {
-        downloadLink = '[app-e2e-report.xlsx](https://github.com/github/workspace/raw/main/website/test/reports/app-e2e-report.xlsx)';
-      }
-      
-      summaryMd += `| ${statusIcon} ${s.name} | ${tot} | ${pas} | ${fai} | **${rate}** | ${downloadLink} |\n`;
-    });
-    
-    summaryMd += `\n**Overall success rate: ${successRate}% (${passedCases}/${totalCases} passed)**\n`;
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summaryMd);
-    console.log("Appended Master summary to GITHUB_STEP_SUMMARY");
-  } catch (summaryErr) {
-    console.error("Failed to write master summary to GITHUB_STEP_SUMMARY:", summaryErr.message);
-  }
-}

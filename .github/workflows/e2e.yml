@@ -8,7 +8,7 @@ on:
 
 jobs:
   selenium:
-    name: Selenium — Website Tests (300)
+    name: Selenium — Website Tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -53,7 +53,7 @@ jobs:
         path: website/test/reports/
 
   appium:
-    name: Appium — Android Tests (300)
+    name: Appium — Android Tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -92,22 +92,10 @@ jobs:
         # Run widget/integration tests headlessly on host environment
         flutter test -d flutter-tester integration_test/app_test.dart
 
-    - name: Generate App Test Summary
-      if: always()
-      run: |
-        echo "## 📱 Appium — Android Tests — CampusStay" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| ID | Test Case | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A001 | App Boot and Onboarding Skip | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A002 | Student Signup & Login | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A003 | Dashboard Tabs & Chat Navigation | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A004 | Owner Sign Up & Login | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A005 | Add PG Room Listing | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-A006 | Verification of PG flat details | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
+
 
   unit:
-    name: Unit Tests — API (300)
+    name: Unit Tests — API
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -120,20 +108,10 @@ jobs:
         node -c supabase_backend/functions/index.ts || true
         node -c firebase_backend/functions/index.js || true
 
-    - name: Generate API Test Summary
-      if: always()
-      run: |
-        echo "## ⚙️ Unit Tests — API — CampusStay" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| ID | Test Case | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-API001 | Auth Token Verification | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-API002 | Supabase Database Read Profile | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-API003 | Realtime Chat Channel Init | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-API004 | Upload Room Image Storage Bucket | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
+
 
   validation:
-    name: Validation Tests (300)
+    name: Validation Tests
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -147,20 +125,10 @@ jobs:
         test -f supabase_user_block.sql && echo "supabase_user_block.sql exists"
         test -f supabase_deletion_requests.sql && echo "supabase_deletion_requests.sql exists"
 
-    - name: Generate Validation Test Summary
-      if: always()
-      run: |
-        echo "## 🔍 Validation Tests — CampusStay" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| ID | Test Case | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-V001 | Schema definition validation | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-V002 | Policies security check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-V003 | Triggers definition checks | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-V004 | Supabase User Block procedure validation | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
+
 
   deployment:
-    name: Deployment Status (300)
+    name: Deployment Status
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -171,19 +139,10 @@ jobs:
         echo "Checking configurations..."
         test -f supabase/config.toml && echo "Supabase config exists"
 
-    - name: Generate Deployment Status Summary
-      if: always()
-      run: |
-        echo "## 🚀 Deployment Status — CampusStay" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| ID | Test Case | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-D001 | Vercel configurations check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-D002 | Environment variable check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-D003 | Supabase project connection check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
+
 
   load_testing:
-    name: Load Testing — Performance (300)
+    name: Load Testing — Performance
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -194,16 +153,7 @@ jobs:
         echo "Checking asset sizes..."
         ls -lh website/app.js website/styles.css
 
-    - name: Generate Load Testing Summary
-      if: always()
-      run: |
-        echo "## ⚡ Load Testing — Performance — CampusStay" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| ID | Test Case | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-L001 | Response latency check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-L002 | Page load speed optimization check | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
-        echo "| TC-L003 | Database indexing performance | :white_check_mark: PASS |" >> $GITHUB_STEP_SUMMARY
+
 
   master_report:
     name: Compile Master Report & Deploy
