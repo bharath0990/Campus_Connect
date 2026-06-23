@@ -41,14 +41,9 @@ jobs:
       env:
         HEADLESS: "true"
         CI: "true"
-        GITHUB_STEP_SUMMARY: ${{ github.workspace }}/selenium_summary.md
       run: |
         cd website
-        # Create empty file first to write results to
-        touch $GITHUB_STEP_SUMMARY
-        npm run test-e2e || true
-        # Output results to job summary
-        cat $GITHUB_STEP_SUMMARY >> $GITHUB_STEP_SUMMARY
+        npm run test-e2e
 
     - name: Upload Test Reports
       if: always()
