@@ -62,6 +62,8 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
   int _roomRent = 0;
   int _roomDeposit = 0;
   String _roomTitle = '';
+  Room? _roomDetails;
+  CSUser? _ownerDetails;
   List<Map<String, dynamic>> _activeRoommates = [];
   List<Map<String, dynamic>> _studentPayments = [];
 
@@ -206,25 +208,55 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
       }
     }
 
-    // Fetch room details (rent and deposit)
+    // Fetch full room and owner details
     try {
       final roomData = await client
           .from('rooms')
-          .select('rent, deposit, title')
+          .select('*, users!owner_id(*)')
           .eq('id', widget.roomId)
           .single();
-      setState(() {
-        _roomRent = (roomData['rent'] as num?)?.toInt() ?? 0;
-        _roomDeposit = (roomData['deposit'] as num?)?.toInt() ?? 0;
-        _roomTitle = roomData['title'] ?? 'Room';
-      });
+      
+      final roomObj = Room.fromMap(roomData, widget.roomId);
+      CSUser? ownerObj;
+      if (roomData['users'] != null) {
+        ownerObj = CSUser.fromMap(roomData['users'], roomObj.ownerId);
+      } else {
+        ownerObj = await SupabaseService().fetchUserProfile(roomObj.ownerId);
+      }
+
+      if (mounted) {
+        setState(() {
+          _roomDetails = roomObj;
+          _ownerDetails = ownerObj;
+          _roomRent = roomObj.rent;
+          _roomDeposit = roomObj.deposit;
+          _roomTitle = roomObj.title;
+        });
+      }
     } catch (e) {
-      debugPrint("Failed to load room details: $e");
-      setState(() {
-        _roomRent = 12000;
-        _roomDeposit = 24000;
-        _roomTitle = 'Mock PG Room';
-      });
+      debugPrint("Failed to load room and owner details: $e");
+      try {
+        final roomData = await client.from('rooms').select().eq('id', widget.roomId).single();
+        final roomObj = Room.fromMap(roomData, widget.roomId);
+        final ownerObj = await SupabaseService().fetchUserProfile(roomObj.ownerId);
+        if (mounted) {
+          setState(() {
+            _roomDetails = roomObj;
+            _ownerDetails = ownerObj;
+            _roomRent = roomObj.rent;
+            _roomDeposit = roomObj.deposit;
+            _roomTitle = roomObj.title;
+          });
+        }
+      } catch (err) {
+        if (mounted) {
+          setState(() {
+            _roomRent = 12000;
+            _roomDeposit = 24000;
+            _roomTitle = 'Co-Living Accommodation';
+          });
+        }
+      }
     }
   }
 
@@ -444,6 +476,197 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
     );
   }
 
+  Widget _buildRoomAndOwnerHeader() {
+    final room = _roomDetails;
+    final owner = _ownerDetails;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Room Title & Verification Badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 75,
+                    height: 75,
+                    color: Colors.grey.shade200,
+                    child: (room != null && room.images.isNotEmpty)
+                        ? Image.network(room.images.first, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.home_work_rounded, size: 36, color: Colors.grey))
+                        : const Icon(Icons.home_work_rounded, size: 36, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _roomTitle.isNotEmpty ? _roomTitle : 'My Co-Living Flat',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (room != null && room.verified)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.verified_rounded, color: Colors.green, size: 12),
+                                  SizedBox(width: 2),
+                                  Text('Verified', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        room?.detailedAddress ?? 'University Area Campus Stay',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text('Rent: ₹${_roomRent}/mo', style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor, fontSize: 13)),
+                          const SizedBox(width: 12),
+                          Text('Deposit: ₹${_roomDeposit}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            if (room != null && room.amenities.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: room.amenities.map((a) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(a, style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                )).toList(),
+              ),
+            ],
+
+            const Divider(height: 24),
+
+            // Owner Details Section
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: NetworkImage(owner?.profilePic ?? 'https://api.dicebear.com/7.x/adventurer/png?seed=Owner'),
+                  backgroundColor: Colors.grey.shade200,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('PROPERTY OWNER / LANDLORD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            owner?.name ?? 'Property Owner',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.check_circle_rounded, color: Colors.blue, size: 14),
+                        ],
+                      ),
+                      if (owner != null && owner.phone.isNotEmpty)
+                        Text('Phone: ${owner.phone}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+
+                // Direct Owner Contact Actions
+                if (owner != null) ...[
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+                      child: const Icon(Icons.phone_rounded, color: Colors.green, size: 18),
+                    ),
+                    onPressed: () {
+                      final phone = owner.phone;
+                      if (phone.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Landlord Contact: $phone')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Landlord phone number not available.')),
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                      child: Icon(Icons.chat_bubble_rounded, color: primaryColor, size: 18),
+                    ),
+                    onPressed: () async {
+                      final chatService = ChatService();
+                      try {
+                        final chatId = await chatService.getOrCreateChatRoom(widget.currentUser.uid, owner.uid);
+                        if (!mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomScreen(
+                              chatRoomId: chatId,
+                              currentUserId: widget.currentUser.uid,
+                              currentUserName: widget.currentUser.name,
+                              peerName: owner.name,
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Could not open chat: $e')),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final balances = _calculateBalances();
@@ -451,7 +674,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Room Bill Splitter'),
+        title: const Text('My Room Hub'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -467,9 +690,11 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         backgroundColor: primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: Column(
-        children: [
-          Container(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildRoomAndOwnerHeader(),
+            Container(
             padding: const EdgeInsets.all(20),
             color: Colors.black.withOpacity(0.01),
             child: Column(
