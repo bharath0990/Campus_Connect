@@ -149,12 +149,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _emailController.text.trim(),
           _otpController.text.trim(),
         );
-        _routeToDashboard(verifyRes.user!.id, _nameController.text.trim());
+        if (verifyRes.user != null) {
+          _routeToDashboard(verifyRes.user!.id, _nameController.text.trim());
+        } else {
+          throw 'OTP verification failed. Please try again.';
+        }
         return;
       }
 
       if (_isForgotPasswordMode) {
         await authService.sendPasswordResetEmail(_emailController.text.trim());
+        if (!mounted) return;
         setState(() {
           _isForgotPasswordMode = false;
           _isResettingPassword = true;
@@ -168,8 +173,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _emailController.text.trim(),
           _otpController.text.trim(),
         );
-        await authService.updateUserPassword(_newPasswordController.text.trim());
-        _routeToDashboard(verifyRes.user!.id, _emailController.text.split('@')[0]);
+        if (verifyRes.user != null) {
+          await authService.updateUserPassword(_newPasswordController.text.trim());
+          _routeToDashboard(verifyRes.user!.id, _emailController.text.split('@')[0]);
+        } else {
+          throw 'Password reset failed. Please try again.';
+        }
         return;
       }
 
@@ -180,13 +189,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _nameController.text.trim(),
           _currentRole,
         );
+
+        if (cred.user == null) {
+          throw 'Registration failed. Please try again.';
+        }
         
-        if (cred.session == null && cred.user != null) {
+        if (cred.session == null) {
+          if (!mounted) return;
           setState(() {
             _isConfirmingSignUp = true;
             _loading = false;
           });
-        } else {
+        } else if (cred.user != null) {
           _routeToDashboard(cred.user!.id, _nameController.text.trim());
         }
       } else {
@@ -194,19 +208,34 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
-        _routeToDashboard(cred.user!.id, _emailController.text.split('@')[0]);
+
+        if (cred.user == null) {
+          throw 'Login failed. Please check your email and password.';
+        }
+
+        final displayName = cred.user?.userMetadata?['name'] ?? _emailController.text.split('@')[0];
+        _routeToDashboard(cred.user!.id, displayName);
       }
     } catch (e) {
+      String cleanErr;
+      if (e is AuthException) {
+        cleanErr = e.message;
+      } else {
+        cleanErr = e.toString().replaceAll("Exception: ", "").replaceAll("AuthException: ", "");
+        if (cleanErr.toLowerCase().contains('invalid login') || cleanErr.toLowerCase().contains('invalid credentials')) {
+          cleanErr = 'Incorrect email or password. Please try again.';
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _errorMsg = e.toString().contains('Invalid') 
-            ? 'Authentication failed: Incorrect credentials or verification code.' 
-            : 'Error: $e';
+        _errorMsg = cleanErr;
       });
     }
   }
 
   void _checkVerificationStatus() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _errorMsg = null;
@@ -222,9 +251,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
-        _routeToDashboard(cred.user!.id, _nameController.text.trim());
+        if (cred.user != null) {
+          _routeToDashboard(cred.user!.id, _nameController.text.trim());
+        } else {
+          throw 'Verification link not yet clicked.';
+        }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _errorMsg = "Verification link not yet clicked. Click the link in your email to verify.";
@@ -259,7 +293,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final authService = Provider.of<AuthService>(context, listen: false);
     final userProfile = await authService.fetchUserProfile(uid) ?? CSUser(
       uid: uid,
-      name: name,
+      name: name.isNotEmpty ? name : _emailController.text.split('@')[0],
       email: _emailController.text,
       phone: '',
       role: _currentRole,
@@ -291,13 +325,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       return;
     }
 
-    if (_currentRole == 'owner') {
+    final resolvedName = userProfile.name.isNotEmpty ? userProfile.name : (name.isNotEmpty ? name : userProfile.email.split('@')[0]);
+
+    if (userProfile.role == 'owner') {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (_) => OwnerDashboardScreen(
             userId: uid,
-            name: name,
+            name: resolvedName,
           ),
         ),
         (route) => false,

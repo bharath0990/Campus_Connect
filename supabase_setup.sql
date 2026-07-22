@@ -177,6 +177,11 @@ create policy "Users can update their own profile"
   on public.users for update
   using (auth.uid() = id or public.is_admin());
 
+drop policy if exists "Users can insert their own profile" on public.users;
+create policy "Users can insert their own profile"
+  on public.users for insert
+  with check (auth.uid() = id or public.is_admin());
+
 -- 2.2 Rooms Policies
 drop policy if exists "Rooms are viewable by everyone authenticated" on public.rooms;
 drop policy if exists "Rooms are viewable by everyone" on public.rooms;
@@ -355,7 +360,7 @@ begin
     new.id,
     username,
     new.email,
-    new.phone,
+    coalesce(new.raw_user_meta_data->>'phone', new.phone, ''),
     default_role,
     coalesce(
       new.raw_user_meta_data->>'avatar_url',

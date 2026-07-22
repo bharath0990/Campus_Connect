@@ -24,13 +24,14 @@ class AuthService {
   }
 
   // Register with Email & Password
-  Future<AuthResponse> registerWithEmail(String email, String password, String name, String role) async {
+  Future<AuthResponse> registerWithEmail(String email, String password, String name, String role, {String phone = ''}) async {
     final res = await _auth.signUp(
       email: email,
       password: password,
       data: {
         'name': name,
         'role': role,
+        'phone': phone,
       },
       emailRedirectTo: 'https://campusstay-admindashboard.vercel.app',
     );
@@ -45,6 +46,7 @@ class AuthService {
           'id': uid,
           'name': name,
           'email': email,
+          'phone': phone,
           'role': role,
           'trust_score': 85,
           'verified': role == 'admin',
@@ -52,7 +54,7 @@ class AuthService {
         });
       }
     } catch (e) {
-      // Catch offline database error
+      debugPrint("Upsert fallback warning: $e");
     }
 
     return res;
@@ -77,7 +79,7 @@ class AuthService {
     }
   }
 
-  // Fetch user profile from public.users table
+  // Fetch user profile from public.users table with metadata fallback
   Future<CSUser?> fetchUserProfile(String uid) async {
     try {
       final data = await _client.from('users').select().eq('id', uid).single();
@@ -117,6 +119,34 @@ class AuthService {
 
       return profile;
     } catch (e) {
+      final user = currentUser;
+      if (user != null && user.id == uid) {
+        final meta = user.userMetadata ?? {};
+        final name = meta['name'] ?? meta['full_name'] ?? (user.email != null && user.email!.isNotEmpty ? user.email!.split('@')[0] : 'User');
+        final role = meta['role'] ?? 'student';
+        return CSUser(
+          uid: uid,
+          name: name,
+          email: user.email ?? '',
+          phone: meta['phone'] ?? user.phone ?? '',
+          role: role,
+          profilePic: meta['avatar_url'] ?? meta['picture'] ?? 'https://api.dicebear.com/7.x/adventurer/png?seed=$uid',
+          verified: role == 'admin',
+          verificationDocs: [],
+          trustScore: 85,
+          joinedDate: DateTime.now(),
+          preferences: UserPreferences(
+            budgetMin: 2000,
+            budgetMax: 15000,
+            sleepHabit: 'flexible',
+            dietary: 'any',
+            cleanliness: 'medium',
+            socialStatus: 'balanced',
+          ),
+          username: user.email != null && user.email!.isNotEmpty ? (user.email!.split('@')[0] + '_' + (uid.length > 5 ? uid.substring(0, 5) : uid)) : 'user_${uid.substring(0, 5)}',
+          blocked: false,
+        );
+      }
       return null;
     }
   }

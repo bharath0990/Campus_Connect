@@ -326,7 +326,7 @@ if (simulatePayBtn) {
         
         document.body.appendChild(modal);
         
-        document.getElementById('close-modal-btn').addEventListener('click', () => {
+        document.getElementById('close-modal-btn')?.addEventListener('click', () => {
           modal.remove();
           simulatePayBtn.disabled = false;
           simulatePayBtn.innerHTML = originalText;
@@ -744,7 +744,7 @@ async function handleSignUp(e) {
   const email = document.getElementById('register-email').value;
   const phone = document.getElementById('register-phone').value;
   const password = document.getElementById('register-password').value;
-  const role = document.querySelector('#register-role-selector button.active').dataset.role;
+  const role = document.querySelector('#register-role-selector button.active')?.dataset?.role || 'student';
 
   const signUpSubmitBtn = e.target.querySelector('button[type="submit"]');
   signUpSubmitBtn.disabled = true;
@@ -788,7 +788,25 @@ async function handleSignUp(e) {
   alert("Account created successfully! You can now log in.");
   signUpSubmitBtn.disabled = false;
   signUpSubmitBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+
+  // Pre-fill email in login form and switch to login tab
+  const loginEmailInput = document.getElementById('login-email');
+  if (loginEmailInput) {
+    loginEmailInput.value = email;
+  }
+
+  const loginRoleBtn = document.querySelector(`#login-role-selector button[data-role="${role}"]`);
+  if (loginRoleBtn) {
+    loginRoleBtn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    loginRoleBtn.classList.add('active');
+  }
+
   openAuthModal('login-tab');
+
+  const loginPasswordInput = document.getElementById('login-password');
+  if (loginPasswordInput) {
+    loginPasswordInput.focus();
+  }
 }
 
 async function handleSignIn(e) {
@@ -1435,7 +1453,7 @@ function showRoomDetail(pane, room, studentLat, studentLng, alreadyBooked = fals
     </div>
   `;
 
-  document.getElementById('back-to-explore').addEventListener('click', () => loadExploreView(pane));
+  document.getElementById('back-to-explore')?.addEventListener('click', () => loadExploreView(pane));
 
   // Render routing Leaflet map
   setTimeout(() => {
@@ -1443,6 +1461,11 @@ function showRoomDetail(pane, room, studentLat, studentLng, alreadyBooked = fals
       const roomLat = room.latitude || 15.3900;
       const roomLng = room.longitude || 73.8800;
       
+      if (mapInstance) {
+        try { mapInstance.remove(); } catch (e) {}
+        mapInstance = null;
+      }
+
       mapInstance = L.map('routing-map').setView([studentLat, studentLng], 14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
@@ -1512,7 +1535,7 @@ function showRoomDetail(pane, room, studentLat, studentLng, alreadyBooked = fals
   }
 
   // Chat Landlord
-  document.getElementById('chat-landlord-btn').addEventListener('click', async () => {
+  document.getElementById('chat-landlord-btn')?.addEventListener('click', async () => {
     // Generate or fetch chat room
     const studentId = currentUserProfile.id;
     const ownerId = room.owner_id;
@@ -1780,8 +1803,9 @@ async function loadBookingsView(pane) {
   `;
 
   // Checkout Payment integration
-  document.getElementById('pay-split-invoice-btn').addEventListener('click', async () => {
+  document.getElementById('pay-split-invoice-btn')?.addEventListener('click', async () => {
     const payBtn = document.getElementById('pay-split-invoice-btn');
+    if (!payBtn) return;
     const origText = payBtn.innerHTML;
     payBtn.disabled = true;
     payBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Razorpay secure gateway...';
@@ -1821,7 +1845,7 @@ async function loadBookingsView(pane) {
         `;
         document.body.appendChild(dialog);
         
-        document.getElementById('success-ok-btn').addEventListener('click', () => {
+        document.getElementById('success-ok-btn')?.addEventListener('click', () => {
           dialog.remove();
           payBtn.disabled = false;
           payBtn.innerHTML = origText;
@@ -2055,7 +2079,7 @@ async function loadStudentBillsView(pane) {
             </div>`;
           document.body.appendChild(dialog);
           document.body.style.overflow = 'hidden';
-          document.getElementById('bill-success-ok').addEventListener('click', () => {
+          document.getElementById('bill-success-ok')?.addEventListener('click', () => {
             dialog.remove();
             document.body.style.overflow = '';
             loadStudentBillsView(pane); // Refresh to show payment in history
@@ -2137,9 +2161,9 @@ async function loadTicketsView(pane) {
 
 
   if (activeBooking) {
-    document.getElementById('raise-ticket-form').addEventListener('submit', async (e) => {
+    document.getElementById('raise-ticket-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const issue = document.getElementById('ticket-issue').value;
+      const issue = document.getElementById('ticket-issue')?.value || '';
       const fileBtn = e.target.querySelector('button[type="submit"]');
       fileBtn.disabled = true;
       fileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
@@ -2308,8 +2332,10 @@ async function loadChatView(pane) {
 }
 
 async function loadMessagesForChat(chatId, peerName) {
-  document.getElementById('chat-header-pane').textContent = peerName;
+  const headerPane = document.getElementById('chat-header-pane');
+  if (headerPane) headerPane.textContent = peerName;
   const messagesPane = document.getElementById('chat-messages-scroll');
+  if (!messagesPane) return;
   messagesPane.innerHTML = '';
 
   // Mark existing messages as read in Supabase
@@ -2441,15 +2467,15 @@ async function loadProfileView(pane) {
   });
 
   // Handle profile update form submission
-  document.getElementById('edit-profile-form').addEventListener('submit', async (e) => {
+  document.getElementById('edit-profile-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('profile-edit-name').value;
-    const phone = document.getElementById('profile-edit-phone').value;
+    const name = document.getElementById('profile-edit-name')?.value || '';
+    const phone = document.getElementById('profile-edit-phone')?.value || '';
     const budgetMax = parseInt(budgetSl.value);
     
-    const sleepHabit = document.querySelector('#profile-edit-sleep button.active').dataset.value;
-    const cleanliness = document.querySelector('#profile-edit-clean button.active').dataset.value;
-    const dietary = document.querySelector('#profile-edit-diet button.active').dataset.value;
+    const sleepHabit = document.querySelector('#profile-edit-sleep button.active')?.dataset?.value || 'flexible';
+    const cleanliness = document.querySelector('#profile-edit-clean button.active')?.dataset?.value || 'medium';
+    const dietary = document.querySelector('#profile-edit-diet button.active')?.dataset?.value || 'any';
 
     const saveBtn = e.target.querySelector('button[type="submit"]');
     saveBtn.disabled = true;
@@ -2596,14 +2622,14 @@ async function loadOwnerListings(pane) {
     });
   });
 
-  document.getElementById('add-room-form').addEventListener('submit', async (e) => {
+  document.getElementById('add-room-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = document.getElementById('room-title').value;
-    const city = document.getElementById('room-city').value;
-    const rent = parseInt(document.getElementById('room-rent').value);
-    const latitude = parseFloat(document.getElementById('room-lat').value);
-    const longitude = parseFloat(document.getElementById('room-lng').value);
-    const detailed_address = document.getElementById('room-address').value;
+    const title = document.getElementById('room-title')?.value || '';
+    const city = document.getElementById('room-city')?.value || '';
+    const rent = parseInt(document.getElementById('room-rent')?.value || '0');
+    const latitude = parseFloat(document.getElementById('room-lat')?.value || '0');
+    const longitude = parseFloat(document.getElementById('room-lng')?.value || '0');
+    const detailed_address = document.getElementById('room-address')?.value || '';
 
     const listBtn = e.target.querySelector('button[type="submit"]');
     listBtn.disabled = true;
@@ -2656,10 +2682,10 @@ function showDeletionRequestModal(roomId, roomTitle, roomAddr) {
   `;
   document.body.appendChild(overlay);
 
-  document.getElementById('cancel-del-btn').addEventListener('click', () => overlay.remove());
+  document.getElementById('cancel-del-btn')?.addEventListener('click', () => overlay.remove());
 
-  document.getElementById('submit-del-btn').addEventListener('click', async () => {
-    const reason = document.getElementById('deletion-reason').value.trim();
+  document.getElementById('submit-del-btn')?.addEventListener('click', async () => {
+    const reason = (document.getElementById('deletion-reason')?.value || '').trim();
     if (!reason) {
       alert('Please provide a reason for the deletion request.');
       return;
@@ -2853,13 +2879,13 @@ async function loadOwnerBills(pane) {
   }
 
   // Handle form submit
-  document.getElementById('owner-bill-form').addEventListener('submit', async (e) => {
+  document.getElementById('owner-bill-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const roomId = document.getElementById('bill-room-select').value;
-    const electricity = parseInt(document.getElementById('bill-elec').value);
-    const maid = parseInt(document.getElementById('bill-maid').value);
-    const wifi = parseInt(document.getElementById('bill-wifi').value);
-    const month = document.getElementById('bill-month').value;
+    const roomId = document.getElementById('bill-room-select')?.value || '';
+    const electricity = parseInt(document.getElementById('bill-elec')?.value || '0');
+    const maid = parseInt(document.getElementById('bill-maid')?.value || '0');
+    const wifi = parseInt(document.getElementById('bill-wifi')?.value || '0');
+    const month = document.getElementById('bill-month')?.value || '';
 
     const saveBtn = e.target.querySelector('button[type="submit"]');
     saveBtn.disabled = true;
