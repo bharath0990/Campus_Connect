@@ -141,6 +141,31 @@ class MockAuthService extends AuthService {
       blocked: false,
     );
   }
+
+  @override
+  Future<bool> loginWithGoogle() async => true;
+
+  @override
+  Future<bool> verifySignupOTP(String email, String token) async => true;
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {}
+
+  @override
+  Future<bool> verifyPasswordResetOTP(String email, String token) async => true;
+
+  @override
+  Future<void> updateUserPassword(String newPassword) async {}
+
+  @override
+  Future<String> uploadAvatar(String userId, List<int> imageBytes) async {
+    return 'https://api.dicebear.com/7.x/adventurer/png?seed=$userId';
+  }
+
+  @override
+  Future<String> uploadVerificationDoc(String userId, String docName, List<int> fileBytes) async {
+    return 'https://api.dicebear.com/7.x/adventurer/png?seed=$docName';
+  }
 }
 
 class MockSupabaseService extends SupabaseService {
@@ -323,6 +348,100 @@ class MockSupabaseService extends SupabaseService {
   Stream<List<MaintenanceTicket>> streamTickets(String userId, bool isOwner) {
     return Stream.value([]);
   }
+
+  @override
+  Future<void> requestRoomDeletion({
+    required String roomId,
+    required String ownerId,
+    required String roomTitle,
+    required String roomAddress,
+    required String reason,
+  }) async {}
+
+  @override
+  Future<void> approveDeletionRequest({
+    required String requestId,
+    required String roomId,
+    String adminNote = 'Deletion approved by admin.',
+  }) async {}
+
+  @override
+  Future<void> rejectDeletionRequest({
+    required String requestId,
+    String adminNote = 'Request rejected by admin.',
+  }) async {}
+
+  @override
+  Future<Payout> requestPayout({
+    required String ownerId,
+    required int amount,
+    required String payoutMethod,
+    required String accountDetails,
+  }) async {
+    return Payout(
+      id: 'payout_mock',
+      ownerId: ownerId,
+      amount: amount,
+      payoutMethod: payoutMethod,
+      accountDetails: accountDetails,
+      status: 'Completed',
+      referenceId: 'wd_mock_123',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<Payout>> fetchPayouts(String ownerId) async {
+    return [];
+  }
+
+  @override
+  Future<String?> getRoomDeletionStatus(String roomId) async {
+    return null;
+  }
+
+  @override
+  Future<void> addRoomReview(String roomId, String studentId, String studentName, int rating, String comment) async {}
+
+  @override
+  Future<String> createBooking(String roomId, String studentId, String ownerId, int rent) async {
+    return 'booking_mock_id';
+  }
+
+  @override
+  Future<void> updateBookingStatus(String bookingId, String status) async {}
+
+  @override
+  Future<void> raiseMaintenanceTicket(String roomId, String ownerId, String studentId, String issue, String address) async {}
+
+  @override
+  Future<void> updateTicketStatus(String ticketId, String newStatus, {String? resolutionNotes}) async {}
+
+  @override
+  Future<void> toggleWishlist(String userId, String roomId, bool isSaved) async {}
+
+  @override
+  Future<void> addRoomBills(String roomId, int electricity, int maid, int wifi, String month) async {}
+
+  @override
+  Future<bool> addFriend(String userId, String friendId) async => true;
+
+  @override
+  Future<bool> acceptFriendRequest(String userId, String friendId) async => true;
+
+  @override
+  Future<bool> removeFriend(String userId, String friendId) async => true;
+
+  @override
+  Future<void> markNotificationAsRead(String id) async {}
+
+  @override
+  Future<void> createNotification({
+    required String userId,
+    String type = 'info',
+    required String title,
+    required String message,
+  }) async {}
 }
 
 class MockChatService extends ChatService {
@@ -399,6 +518,39 @@ class MockChatService extends ChatService {
   @override
   Stream<int> streamTotalUnreadCount(String currentUserId) {
     return Stream.value(0);
+  }
+
+  @override
+  Future<String> getOrCreateRoommateGroupChat(String roomId, String roomTitle, List<String> roommateIds) async {
+    return 'group_$roomId';
+  }
+
+  @override
+  Future<void> markMessagesAsRead(String chatRoomId, String userId) async {}
+}
+
+class MockPaymentService extends PaymentService {
+  @override
+  Stream<List<Map<String, dynamic>>> streamPayments(String studentId) {
+    return Stream.value([]);
+  }
+
+  @override
+  Future<bool> createRazorpayPayment({
+    required String bookingId,
+    required int amount,
+    required String studentId,
+    required String method,
+    required String status,
+    required String razorpayId,
+    String? receipt,
+  }) async {
+    return true;
+  }
+
+  @override
+  Future<bool> triggerRazorpayPayment(String bookingId, int amount, String studentId) async {
+    return true;
   }
 }
 
