@@ -405,25 +405,7 @@ class SupabaseService {
     });
   }
 
-  // Create notification for user
-  Future<void> createNotification(
-    String userId,
-    String title,
-    String message, [
-    String type = 'info',
-  ]) async {
-    try {
-      await _client.from('notifications').insert({
-        'user_id': userId,
-        'type': type,
-        'title': title,
-        'message': message,
-        'read': false,
-      });
-    } catch (e) {
-      debugPrint("Failed to create notification: $e");
-    }
-  }
+
 
   // Upload room image to Supabase Storage
   Future<String> uploadRoomImage(String fileName, List<int> bytes) async {

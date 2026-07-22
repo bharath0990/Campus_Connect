@@ -189,7 +189,7 @@ class MockAuthService extends AuthService {
       aud: 'authenticated',
       createdAt: DateTime.now().toIso8601String(),
     );
-    return UserResponse(user: user);
+    return UserResponse.fromJson({'user': user.toJson()});
   }
 
   @override
@@ -471,12 +471,7 @@ class MockSupabaseService extends SupabaseService {
   Future<void> markNotificationAsRead(String id) async {}
 
   @override
-  Future<void> createNotification(
-    String userId,
-    String title,
-    String message, [
-    String type = 'info',
-  ]) async {
+  Future<void> createNotification(String userId, String type, String title, String message) async {
     _notifications.add({
       'id': 'notif_${DateTime.now().millisecondsSinceEpoch}',
       'userId': userId,

@@ -221,7 +221,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
       if (roomData['users'] != null) {
         ownerObj = CSUser.fromMap(roomData['users'], roomObj.ownerId);
       } else {
-        ownerObj = await SupabaseService().fetchUserProfile(roomObj.ownerId);
+        ownerObj = await AuthService().fetchUserProfile(roomObj.ownerId);
       }
 
       if (mounted) {
@@ -238,7 +238,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
       try {
         final roomData = await client.from('rooms').select().eq('id', widget.roomId).single();
         final roomObj = Room.fromMap(roomData, widget.roomId);
-        final ownerObj = await SupabaseService().fetchUserProfile(roomObj.ownerId);
+        final ownerObj = await AuthService().fetchUserProfile(roomObj.ownerId);
         if (mounted) {
           setState(() {
             _roomDetails = roomObj;
@@ -1011,37 +1011,40 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
               );
             }).toList(),
           const Divider(height: 1),
-          Expanded(
-            child: _mockExpenses.isEmpty
-                ? const Center(child: Text('No room expenses logged yet. Tap + to add.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _mockExpenses.length,
-                    itemBuilder: (context, idx) {
-                      final exp = _mockExpenses[idx];
-                      final share = exp['amount'] / _activeRoommateCount;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: exp['paid_by_name'] == 'You' ? primaryColor.withOpacity(0.1) : Colors.grey.shade200,
-                            child: Icon(Icons.receipt_long, color: exp['paid_by_name'] == 'You' ? primaryColor : Colors.grey),
-                          ),
-                          title: Text(exp['description'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('Paid by ${exp['paid_by_name']} • ${exp['date']}'),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text('₹${exp['amount']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              Text('₹${share.toStringAsFixed(0)}/share', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            ],
-                          ),
+          _mockExpenses.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: Text('No room expenses logged yet. Tap + to add.')),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _mockExpenses.length,
+                  itemBuilder: (context, idx) {
+                    final exp = _mockExpenses[idx];
+                    final share = exp['amount'] / _activeRoommateCount;
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: exp['paid_by_name'] == 'You' ? primaryColor.withOpacity(0.1) : Colors.grey.shade200,
+                          child: Icon(Icons.receipt_long, color: exp['paid_by_name'] == 'You' ? primaryColor : Colors.grey),
                         ),
-                      );
-                    },
-                  ),
-          ),
+                        title: Text(exp['description'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('Paid by ${exp['paid_by_name']} • ${exp['date']}'),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('₹${exp['amount']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text('₹${share.toStringAsFixed(0)}/share', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
         ],
       ),
     );

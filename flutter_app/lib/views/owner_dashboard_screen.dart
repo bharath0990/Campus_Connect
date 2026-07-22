@@ -2885,7 +2885,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
   Widget _buildWalletTab(SupabaseService db) {
     return FutureBuilder(
-      future: Future.wait([
+      future: Future.wait<dynamic>([
         Supabase.instance.client.from('bookings').select('*, rooms!inner(*)').eq('owner_id', widget.userId),
         db.fetchPayouts(widget.userId),
       ]),

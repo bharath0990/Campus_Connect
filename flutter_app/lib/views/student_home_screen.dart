@@ -2529,9 +2529,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                   
                                   await db.createNotification(
                                     userId,
+                                    'info',
                                     "Verification Approved!",
                                     msg,
-                                    'info',
                                   );
 
                                   if (context.mounted) {
@@ -2568,9 +2568,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
                                 await db.createNotification(
                                   userId,
+                                  'info',
                                   "Verification Rejected",
                                   "Your document verification request was rejected. Please re-upload clear government ID documents.",
-                                  'info',
                                 );
 
                                 if (context.mounted) {
