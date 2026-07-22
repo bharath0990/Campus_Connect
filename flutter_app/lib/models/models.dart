@@ -392,3 +392,51 @@ class RoomBill {
     };
   }
 }
+
+/// 7. Owner Payout / Withdrawal Model
+class Payout {
+  final String id;
+  final String ownerId;
+  final int amount;
+  final String payoutMethod;
+  final String accountDetails;
+  final String status;
+  final String referenceId;
+  final DateTime createdAt;
+
+  Payout({
+    required this.id,
+    required this.ownerId,
+    required this.amount,
+    required this.payoutMethod,
+    required this.accountDetails,
+    required this.status,
+    required this.referenceId,
+    required this.createdAt,
+  });
+
+  factory Payout.fromMap(Map<String, dynamic> data, String id) {
+    return Payout(
+      id: id,
+      ownerId: data['owner_id'] ?? '',
+      amount: data['amount'] ?? 0,
+      payoutMethod: data['payout_method'] ?? 'UPI',
+      accountDetails: data['account_details'] ?? '',
+      status: data['status'] ?? 'Processing',
+      referenceId: data['reference_id'] ?? '',
+      createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'owner_id': ownerId,
+      'amount': amount,
+      'payout_method': payoutMethod,
+      'account_details': accountDetails,
+      'status': status,
+      'reference_id': referenceId,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+}

@@ -2883,13 +2883,423 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     );
   }
 
+  Widget _buildWalletTab(SupabaseService db) {
+    return FutureBuilder(
+      future: Future.wait([
+        Supabase.instance.client.from('bookings').select('*, rooms!inner(*)').eq('owner_id', widget.userId),
+        db.fetchPayouts(widget.userId),
+      ]),
+      builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final bookings = (snapshot.data?[0] as List<dynamic>?) ?? [];
+        final payouts = (snapshot.data?[1] as List<Payout>?) ?? [];
+
+        // Calculate metrics
+        int totalCollected = 0;
+        for (var b in bookings) {
+          final status = b['status']?.toString();
+          if (status == 'Active' || status == 'Completed') {
+            final rent = (b['rent'] as num?)?.toInt() ?? 0;
+            totalCollected += rent;
+          }
+        }
+
+        int totalWithdrawn = 0;
+        for (var p in payouts) {
+          totalWithdrawn += p.amount;
+        }
+
+        final int availableBalance = totalCollected > totalWithdrawn ? (totalCollected - totalWithdrawn) : 0;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Owner Wallet Hero Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD32F2F), Color(0xFFB71C1C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD32F2F).withOpacity(0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'OWNER WALLET BALANCE',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.shield_outlined, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text('Protected', style: TextStyle(color: Colors.white, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '₹${availableBalance.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.extrabold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: availableBalance <= 0 
+                                ? null 
+                                : () => _showWithdrawModal(context, db, availableBalance),
+                            icon: const Icon(Icons.south_west_rounded),
+                            label: const Text('Withdraw Rent Funds', style: TextStyle(fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFFD32F2F),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(color: Colors.white24),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Total Rent Collected', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                            const SizedBox(height: 2),
+                            Text('₹$totalCollected', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                          ],
+                        ),
+                        Container(height: 25, width: 1, color: Colors.white24),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Total Withdrawn', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                            const SizedBox(height: 2),
+                            Text('₹$totalWithdrawn', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              const Text(
+                'Recent Transactions & Payouts',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              if (bookings.isEmpty && payouts.isEmpty) ...[
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: const Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.account_balance_wallet_outlined, size: 48, color: Colors.grey),
+                          SizedBox(height: 12),
+                          Text('No wallet transactions logged yet.', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // Render List of Payouts
+                ...payouts.map((p) => Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.red.shade50,
+                      child: const Icon(Icons.north_east_rounded, color: Colors.red),
+                    ),
+                    title: Text('Withdrawal to ${p.payoutMethod}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text('${p.accountDetails} • ${p.createdAt.toLocal().toString().split(' ')[0]}', style: const TextStyle(fontSize: 12)),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('- ₹${p.amount}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(p.status, style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+
+                // Render Rent Income Bookings
+                ...bookings.where((b) => b['status'] == 'Active' || b['status'] == 'Completed').map((b) => Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.green.shade50,
+                      child: const Icon(Icons.south_west_rounded, color: Colors.green),
+                    ),
+                    title: Text('Rent Received (${b['rooms']?['title'] ?? 'Flat'})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text('Status: ${b['status']}', style: const TextStyle(fontSize: 12)),
+                    trailing: Text(
+                      '+ ₹${b['rent']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 15),
+                    ),
+                  ),
+                )),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showWithdrawModal(BuildContext context, SupabaseService db, int availableBalance) {
+    final formKey = GlobalKey<FormState>();
+    final amountController = TextEditingController();
+    final detailsController = TextEditingController();
+    String payoutMethod = 'UPI';
+    bool isSubmitting = false;
+    String? errorText;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Withdraw Rent Balance',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Available Balance: ₹$availableBalance',
+                      style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (errorText != null) ...[
+                      Text(errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                      const SizedBox(height: 10),
+                    ],
+
+                    TextFormField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Withdrawal Amount (₹)',
+                        prefixIcon: Icon(Icons.currency_rupee_rounded),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (val) {
+                        if (val == null || val.isEmpty) return 'Enter withdrawal amount';
+                        final amt = int.tryParse(val.trim());
+                        if (amt == null || amt <= 0) return 'Enter valid positive amount';
+                        if (amt > availableBalance) return 'Amount exceeds available balance (₹$availableBalance)';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Quick Selection Chips
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ActionChip(
+                          label: const Text('₹2,000'),
+                          onPressed: () => amountController.text = '2000',
+                        ),
+                        ActionChip(
+                          label: const Text('₹5,000'),
+                          onPressed: () => amountController.text = '5000',
+                        ),
+                        ActionChip(
+                          label: const Text('₹10,000'),
+                          onPressed: () => amountController.text = '10000',
+                        ),
+                        ActionChip(
+                          label: const Text('Withdraw All'),
+                          onPressed: () => amountController.text = availableBalance.toString(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      value: payoutMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'Payout Transfer Method',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'UPI', child: Text('UPI ID (Instant Transfer)')),
+                        DropdownMenuItem(value: 'Bank Transfer', child: Text('Bank Account (NEFT/IMPS)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setSheetState(() => payoutMethod = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: detailsController,
+                      decoration: InputDecoration(
+                        labelText: payoutMethod == 'UPI' ? 'UPI ID (e.g. owner@okicici)' : 'Account No. & IFSC Code',
+                        hintText: payoutMethod == 'UPI' ? 'owner@upi' : 'A/C 123456789, IFSC HDFC0001234',
+                        border: const OutlineInputBorder(),
+                      ),
+                      validator: (val) => val == null || val.trim().isEmpty ? 'Enter payout details' : null,
+                    ),
+                    const SizedBox(height: 24),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                if (!formKey.currentState!.validate()) return;
+                                setSheetState(() {
+                                  isSubmitting = true;
+                                  errorText = null;
+                                });
+
+                                try {
+                                  final amt = int.parse(amountController.text.trim());
+                                  final payout = await db.requestPayout(
+                                    ownerId: widget.userId,
+                                    amount: amt,
+                                    payoutMethod: payoutMethod,
+                                    accountDetails: detailsController.text.trim(),
+                                  );
+
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    setState(() {}); // Refresh wallet balance UI
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Withdrawal request of ₹$amt submitted! Reference ID: ${payout.referenceId}'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setSheetState(() {
+                                    isSubmitting = false;
+                                    errorText = 'Withdrawal failed: $e';
+                                  });
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD32F2F),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: isSubmitting
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('Confirm Withdrawal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<SupabaseService>(context, listen: false);
     final auth = Provider.of<AuthService>(context, listen: false);
 
     return Scaffold(
-      appBar: _tabIndex == 4 
+      appBar: _tabIndex == 5 
           ? null 
           : AppBar(
               title: Text('${widget.name}\'s Hub'),
@@ -2906,6 +3316,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.roofing_rounded), label: 'Listings'),
           BottomNavigationBarItem(icon: Icon(Icons.meeting_room_rounded), label: 'My Rooms'),
           BottomNavigationBarItem(icon: Icon(Icons.pending_actions_rounded), label: 'Requests'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Wallet'),
           BottomNavigationBarItem(icon: Icon(Icons.handyman_rounded), label: 'Maintenance'),
           BottomNavigationBarItem(icon: Icon(Icons.forum_rounded), label: 'Messages'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
@@ -2914,8 +3325,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       body: _tabIndex == 0 ? _buildListingsTab(db)
           : _tabIndex == 1 ? _buildMyRoomsTab(db)
           : _tabIndex == 2 ? _buildRequestsTab(db)
-          : _tabIndex == 3 ? _buildTicketsTab(db)
-          : _tabIndex == 4 ? ChatsListScreen(currentUserId: widget.userId, currentUserName: widget.name)
+          : _tabIndex == 3 ? _buildWalletTab(db)
+          : _tabIndex == 4 ? _buildTicketsTab(db)
+          : _tabIndex == 5 ? ChatsListScreen(currentUserId: widget.userId, currentUserName: widget.name)
           : _buildProfileTab(auth),
     );
   }

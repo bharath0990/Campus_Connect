@@ -70,7 +70,23 @@ create table if not exists public.payments (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 1.5 Chats Table
+-- 1.5 Owner Payouts / Wallet Withdrawals Table
+create table if not exists public.payouts (
+  id uuid default uuid_generate_v4() primary key,
+  owner_id uuid references public.users(id) on delete cascade not null,
+  amount integer not null check (amount > 0),
+  payout_method text not null,
+  account_details text not null,
+  status text not null default 'Processing' check (status in ('Processing', 'Completed', 'Failed')),
+  reference_id text unique,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS for payouts
+alter table public.payouts enable row level security;
+create policy "Owners can manage payouts" on public.payouts for all using (auth.uid() = owner_id or public.is_admin());
+
+-- 1.6 Chats Table
 create table if not exists public.chats (
   id uuid default uuid_generate_v4() primary key,
   participants uuid[] not null,

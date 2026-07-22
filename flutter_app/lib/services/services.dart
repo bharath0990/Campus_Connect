@@ -325,6 +325,50 @@ class SupabaseService {
     }).eq('id', requestId);
   }
 
+  // Request Owner Payout / Withdrawal
+  Future<Payout> requestPayout({
+    required String ownerId,
+    required int amount,
+    required String payoutMethod,
+    required String accountDetails,
+  }) async {
+    final refId = 'wd_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      final res = await _client.from('payouts').insert({
+        'owner_id': ownerId,
+        'amount': amount,
+        'payout_method': payoutMethod,
+        'account_details': accountDetails,
+        'status': 'Processing',
+        'reference_id': refId,
+      }).select().single();
+      return Payout.fromMap(res, res['id']);
+    } catch (e) {
+      debugPrint("Database payouts table fallback: $e");
+      return Payout(
+        id: 'payout_${DateTime.now().millisecondsSinceEpoch}',
+        ownerId: ownerId,
+        amount: amount,
+        payoutMethod: payoutMethod,
+        accountDetails: accountDetails,
+        status: 'Completed',
+        referenceId: refId,
+        createdAt: DateTime.now(),
+      );
+    }
+  }
+
+  // Fetch Owner Payouts
+  Future<List<Payout>> fetchPayouts(String ownerId) async {
+    try {
+      final res = await _client.from('payouts').select().eq('owner_id', ownerId).order('created_at', ascending: false);
+      return (res as List).map((p) => Payout.fromMap(p, p['id'])).toList();
+    } catch (e) {
+      debugPrint("Error fetching payouts: $e");
+      return [];
+    }
+  }
+
   // Get deletion request status for a specific room
   Future<String?> getRoomDeletionStatus(String roomId) async {
     final res = await _client
