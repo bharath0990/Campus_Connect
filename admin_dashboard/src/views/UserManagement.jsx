@@ -314,6 +314,32 @@ export default function UserManagement() {
 
                   <td style={{ padding: '18px 12px', textAlign: 'right' }}>
                     <button 
+                      id={`verify-btn-${user.id}`}
+                      onClick={async () => {
+                        try {
+                          const nextVerified = !user.verified;
+                          await supabase.from('users').update({ verified: nextVerified, trust_score: nextVerified ? 98 : 85 }).eq('id', user.id);
+                          if (user.role === 'owner') {
+                            await supabase.from('rooms').update({ verified: nextVerified }).eq('owner_id', user.id);
+                          }
+                          setUsers(prev => prev.map(u => u.id === user.id ? { ...u, verified: nextVerified, trust_score: nextVerified ? 98 : 85 } : u));
+                          setNotification(`User ${user.name} KYC Verification status set to ${nextVerified ? 'APPROVED (Verified Badges Issued)' : 'REVOKED'}`);
+                        } catch (e) {
+                          alert("Failed to update verification status: " + e.message);
+                        }
+                      }}
+                      style={{ 
+                        padding: '8px 14px', 
+                        fontSize: '12px',
+                        marginRight: '8px',
+                        backgroundColor: user.verified ? 'rgba(16, 185, 129, 0.15)' : 'var(--primary)',
+                        borderColor: user.verified ? 'rgba(16, 185, 129, 0.3)' : 'var(--primary)',
+                        color: user.verified ? 'var(--accent)' : 'white'
+                      }}
+                    >
+                      {user.verified ? '✓ Verified Badge' : '🛡️ Approve KYC & Issue Badge'}
+                    </button>
+                    <button 
                       id={`block-btn-${user.id}`}
                       onClick={() => handleBlockToggle(user.id, user.blocked)}
                       className={user.blocked ? '' : 'secondary'}

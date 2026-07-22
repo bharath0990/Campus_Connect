@@ -3236,3 +3236,52 @@ async function loadAdminPanel(pane) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'deletion_requests' }, () => { renderAdminQueue(); })
     .subscribe();
 }
+
+// -----------------------------------------
+// RAZORPAY WEB PAYMENT GATEWAY INTEGRATION
+// -----------------------------------------
+window.triggerRazorpayWebPayment = async function(bookingId, amount, studentId, roomTitle) {
+  if (typeof Razorpay === 'undefined') {
+    alert('Razorpay Payment Gateway SDK loading... Please retry in a moment.');
+    return;
+  }
+
+  const options = {
+    "key": "rzp_test_campusstay",
+    "amount": amount * 100, // Amount in paise
+    "currency": "INR",
+    "name": "CampusStay Accommodation",
+    "description": "Payment for " + (roomTitle || "Room Rent / Deposit"),
+    "handler": async function (response) {
+      const razorpayId = response.razorpay_payment_id || 'pay_' + Date.now();
+      try {
+        if (window.supabase) {
+          await window.supabase.from('payments').insert({
+            booking_id: bookingId,
+            student_id: studentId,
+            amount: amount,
+            method: 'Razorpay Gateway',
+            status: 'Successful',
+            razorpay_id: razorpayId,
+            receipt: 'Web Rent Payment - ' + (roomTitle || 'Room')
+          });
+          await window.supabase.from('bookings').update({ status: 'Active' }).eq('id', bookingId);
+        }
+        alert('🎉 Payment Successful! Transaction ID: ' + razorpayId);
+      } catch (err) {
+        console.error("Payment recording error:", err);
+        alert('Payment completed! Transaction ID: ' + razorpayId);
+      }
+    },
+    "prefill": {
+      "name": "CampusStay Student User",
+      "email": "student@campusstay.com"
+    },
+    "theme": {
+      "color": "#D32F2F"
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.open();
+};

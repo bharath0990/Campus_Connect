@@ -2469,9 +2469,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                     phone: _currentUser.phone,
                                     role: _currentUser.role,
                                     profilePic: _currentUser.profilePic,
-                                    verified: true,
+                                    verified: false, // Remains false until Admin verifies and approves
                                     verificationDocs: updatedDocs,
-                                    trustScore: 98,
+                                    trustScore: _currentUser.trustScore,
                                     joinedDate: _currentUser.joinedDate,
                                     preferences: _currentUser.preferences,
                                     username: _currentUser.username,
@@ -2488,8 +2488,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Landlord Documents Uploaded and Verified! Trust Score boosted to 98.'),
-                                        backgroundColor: Colors.green,
+                                        content: Text('Landlord & Property documents uploaded! Submitted for Admin Verification & Approval.'),
+                                        backgroundColor: Colors.blue,
                                       ),
                                     );
                                   }

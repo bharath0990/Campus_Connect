@@ -2014,9 +2014,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                     phone: _currentUser.phone,
                                     role: _currentUser.role,
                                     profilePic: _currentUser.profilePic,
-                                    verified: true,
+                                    verified: false, // Remains false until Admin verifies and approves
                                     verificationDocs: updatedDocs,
-                                    trustScore: 98,
+                                    trustScore: _currentUser.trustScore,
                                     joinedDate: _currentUser.joinedDate,
                                     preferences: _currentUser.preferences,
                                     username: _currentUser.username,
@@ -2033,8 +2033,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('ID Verified successfully! Trust Score boosted to 98.'),
-                                        backgroundColor: Colors.green,
+                                        content: Text('Student KYC Documents uploaded! Submitted for Admin Verification & Approval.'),
+                                        backgroundColor: Colors.blue,
                                       ),
                                     );
                                   }
@@ -2298,44 +2298,328 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 
   Widget _buildAdminPanelView(SupabaseService db) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            color: Theme.of(context).cardColor,
+            child: TabBar(
+              labelColor: Theme.of(context).primaryColor,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: Theme.of(context).primaryColor,
+              tabs: const [
+                Tab(icon: Icon(Icons.verified_user_rounded, size: 18), text: 'KYC Approvals'),
+                Tab(icon: Icon(Icons.delete_sweep_rounded, size: 18), text: 'Room Deletions'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildAdminKYCApprovalTab(db),
+                _buildAdminRoomDeletionsTab(db),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminKYCApprovalTab(SupabaseService db) {
+    final client = Supabase.instance.client;
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: db.streamAllDeletionRequests(),
+      stream: client.from('users').stream(primaryKey: ['id']),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final requests = snapshot.data ?? [];
-        final pending = requests.where((r) => r['status'] == 'pending').toList();
-        final processed = requests.where((r) => r['status'] != 'pending').toList();
+        final usersList = snapshot.data ?? [];
+        // Filter users who uploaded verification docs
+        final kycUsers = usersList.where((u) {
+          final docs = List<String>.from(u['verification_docs'] ?? []);
+          return docs.isNotEmpty;
+        }).toList();
 
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              TabBar(
-                labelColor: Theme.of(context).primaryColor,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: Theme.of(context).primaryColor,
-                tabs: [
-                  Tab(text: 'Pending (${pending.length})'),
-                  Tab(text: 'Processed (${processed.length})'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
+        if (kycUsers.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.shield_rounded, size: 64, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('No KYC verification submissions pending.', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: kycUsers.length,
+          itemBuilder: (context, index) {
+            final u = kycUsers[index];
+            final String userId = u['id'].toString();
+            final String name = u['name'] ?? 'User';
+            final String email = u['email'] ?? '';
+            final String role = u['role'] ?? 'student';
+            final bool isVerified = u['verified'] ?? false;
+            final docs = List<String>.from(u['verification_docs'] ?? []);
+            final isOwner = role == 'owner';
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPendingRequestsList(db, pending),
-                    _buildProcessedRequestsList(processed),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundImage: NetworkImage(u['profile_pic'] ?? 'https://api.dicebear.com/7.x/adventurer/png?seed=$userId'),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isOwner ? Colors.purple.shade50 : Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      isOwner ? 'LANDLORD' : 'STUDENT',
+                                      style: TextStyle(
+                                        color: isOwner ? Colors.purple : Colors.blue,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(email, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isVerified ? Colors.green.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isVerified ? Colors.green : Colors.orange),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
+                                color: isVerified ? Colors.green : Colors.orange,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isVerified ? 'VERIFIED BADGE' : 'PENDING APPROVAL',
+                                style: TextStyle(
+                                  color: isVerified ? Colors.green : Colors.orange,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    const Text('Uploaded Identity / Proof Documents:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 8),
+
+                    // Documents horizontal scroll preview
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: docs.length,
+                        itemBuilder: (context, dIdx) {
+                          final docUrl = docs[dIdx];
+                          return Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            width: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                docUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => const Center(child: Icon(Icons.picture_as_pdf_rounded, color: Colors.grey)),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    if (isOwner) ...[
+                      const SizedBox(height: 12),
+                      FutureBuilder(
+                        future: client.from('rooms').select('title, city, verified').eq('owner_id', userId),
+                        builder: (context, AsyncSnapshot roomSnap) {
+                          final rooms = (roomSnap.data as List<dynamic>?) ?? [];
+                          if (rooms.isEmpty) return const SizedBox.shrink();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Associated Room Listings (${rooms.length}):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 6,
+                                children: rooms.map((r) => Chip(
+                                  avatar: Icon(r['verified'] == true ? Icons.verified_rounded : Icons.home_rounded, size: 14, color: r['verified'] == true ? Colors.green : Colors.grey),
+                                  label: Text('${r['title']} (${r['city']})', style: const TextStyle(fontSize: 11)),
+                                  visualDensity: VisualDensity.compact,
+                                )).toList(),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        if (!isVerified) ...[
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  // Update User to Verified
+                                  await client.from('users').update({
+                                    'verified': true,
+                                    'trust_score': 98,
+                                  }).eq('id', userId);
+
+                                  // If Owner, ALSO verify all owner's rooms!
+                                  if (isOwner) {
+                                    await client.from('rooms').update({
+                                      'verified': true,
+                                    }).eq('owner_id', userId);
+                                  }
+
+                                  // Send Notification to User
+                                  final msg = isOwner
+                                      ? "🎉 Congratulations! Your Landlord & Property verification has been approved by Admin. Your profile and room listings now display Verified Badges!"
+                                      : "🎉 Congratulations! Your Student KYC verification has been approved by Admin. You now display the Verified Student Badge!";
+                                  
+                                  await db.createNotification(
+                                    userId: userId,
+                                    title: "Verification Approved!",
+                                    message: msg,
+                                  );
+
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('${isOwner ? "Landlord & Room Listings" : "Student KYC"} Approved! Verified Badge Issued.'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Approval failed: $e')),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.check_circle_rounded),
+                              label: Text(isOwner ? 'Approve Owner & Rooms' : 'Approve Student KYC', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                await client.from('users').update({
+                                  'verified': false,
+                                }).eq('id', userId);
+
+                                await db.createNotification(
+                                  userId: userId,
+                                  title: "Verification Rejected",
+                                  message: "Your document verification request was rejected. Please re-upload clear government ID documents.",
+                                );
+
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Verification rejected.')),
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint("Rejection failed: $e");
+                              }
+                            },
+                            icon: const Icon(Icons.cancel_rounded, color: Colors.red),
+                            label: const Text('Reject', style: TextStyle(color: Colors.red)),
+                            style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                          ),
+                        ] else ...[
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  await client.from('users').update({'verified': false}).eq('id', userId);
+                                  if (isOwner) {
+                                    await client.from('rooms').update({'verified': false}).eq('owner_id', userId);
+                                  }
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Verification status revoked.')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint("Revoke error: $e");
+                                }
+                              },
+                              icon: const Icon(Icons.remove_moderator_rounded, color: Colors.orange),
+                              label: const Text('Revoke Verified Badge', style: TextStyle(color: Colors.orange)),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
+
+  Widget _buildAdminRoomDeletionsTab(SupabaseService db) {
 
   Widget _buildPendingRequestsList(SupabaseService db, List<Map<String, dynamic>> pending) {
     if (pending.isEmpty) {
