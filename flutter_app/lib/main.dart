@@ -64,6 +64,7 @@ class CampusStayApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
+          splashFactory: InkRipple.splashFactory,
           brightness: Brightness.light,
           scaffoldBackgroundColor: const Color(0xFFFAFAFA),
           primaryColor: const Color(0xFFD32F2F),
