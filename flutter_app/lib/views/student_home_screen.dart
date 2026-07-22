@@ -2528,9 +2528,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                       : "🎉 Congratulations! Your Student KYC verification has been approved by Admin. You now display the Verified Student Badge!";
                                   
                                   await db.createNotification(
-                                    userId: userId,
-                                    title: "Verification Approved!",
-                                    message: msg,
+                                    userId,
+                                    "Verification Approved!",
+                                    msg,
+                                    'info',
                                   );
 
                                   if (context.mounted) {
@@ -2566,9 +2567,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                 }).eq('id', userId);
 
                                 await db.createNotification(
-                                  userId: userId,
-                                  title: "Verification Rejected",
-                                  message: "Your document verification request was rejected. Please re-upload clear government ID documents.",
+                                  userId,
+                                  "Verification Rejected",
+                                  "Your document verification request was rejected. Please re-upload clear government ID documents.",
+                                  'info',
                                 );
 
                                 if (context.mounted) {
@@ -2620,6 +2622,44 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 
   Widget _buildAdminRoomDeletionsTab(SupabaseService db) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: db.streamAllDeletionRequests(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final requests = snapshot.data ?? [];
+        final pending = requests.where((r) => r['status'] == 'pending').toList();
+        final processed = requests.where((r) => r['status'] != 'pending').toList();
+
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              TabBar(
+                labelColor: Theme.of(context).primaryColor,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Theme.of(context).primaryColor,
+                tabs: [
+                  Tab(text: 'Pending (${pending.length})'),
+                  Tab(text: 'Processed (${processed.length})'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildPendingRequestsList(db, pending),
+                    _buildProcessedRequestsList(processed),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildPendingRequestsList(SupabaseService db, List<Map<String, dynamic>> pending) {
     if (pending.isEmpty) {

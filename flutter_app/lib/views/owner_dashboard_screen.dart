@@ -2976,7 +2976,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 34,
-                        fontWeight: FontWeight.extrabold,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 20),

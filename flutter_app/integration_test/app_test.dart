@@ -146,16 +146,51 @@ class MockAuthService extends AuthService {
   Future<bool> loginWithGoogle() async => true;
 
   @override
-  Future<bool> verifySignupOTP(String email, String token) async => true;
+  Future<AuthResponse> verifySignupOTP(String email, String token) async {
+    final user = User(
+      id: 'mock_uid_${email.split('@')[0]}',
+      appMetadata: {},
+      userMetadata: {'name': email.split('@')[0]},
+      aud: 'authenticated',
+      createdAt: DateTime.now().toIso8601String(),
+      email: email,
+    );
+    return AuthResponse(
+      session: Session(accessToken: 'mock_token', tokenType: 'bearer', user: user),
+      user: user,
+    );
+  }
 
   @override
   Future<void> sendPasswordResetEmail(String email) async {}
 
   @override
-  Future<bool> verifyPasswordResetOTP(String email, String token) async => true;
+  Future<AuthResponse> verifyPasswordResetOTP(String email, String token) async {
+    final user = User(
+      id: 'mock_uid_${email.split('@')[0]}',
+      appMetadata: {},
+      userMetadata: {'name': email.split('@')[0]},
+      aud: 'authenticated',
+      createdAt: DateTime.now().toIso8601String(),
+      email: email,
+    );
+    return AuthResponse(
+      session: Session(accessToken: 'mock_token', tokenType: 'bearer', user: user),
+      user: user,
+    );
+  }
 
   @override
-  Future<void> updateUserPassword(String newPassword) async {}
+  Future<UserResponse> updateUserPassword(String newPassword) async {
+    final user = User(
+      id: 'mock_uid_updated',
+      appMetadata: {},
+      userMetadata: {'name': 'updated'},
+      aud: 'authenticated',
+      createdAt: DateTime.now().toIso8601String(),
+    );
+    return UserResponse(user: user);
+  }
 
   @override
   Future<String> uploadAvatar(String userId, List<int> imageBytes) async {
@@ -436,12 +471,23 @@ class MockSupabaseService extends SupabaseService {
   Future<void> markNotificationAsRead(String id) async {}
 
   @override
-  Future<void> createNotification({
-    required String userId,
+  Future<void> createNotification(
+    String userId,
+    String title,
+    String message, [
     String type = 'info',
-    required String title,
-    required String message,
-  }) async {}
+  ]) async {
+    _notifications.add({
+      'id': 'notif_${DateTime.now().millisecondsSinceEpoch}',
+      'userId': userId,
+      'title': title,
+      'message': message,
+      'type': type,
+      'read': false,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+    _notificationsController.add(List.from(_notifications));
+  }
 }
 
 class MockChatService extends ChatService {

@@ -638,7 +638,11 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                     onPressed: () async {
                       final chatService = ChatService();
                       try {
-                        final chatId = await chatService.getOrCreateChatRoom(widget.currentUser.uid, owner.uid);
+                        final chatId = await chatService.getOrCreateChatRoom(
+                          widget.currentUser.uid,
+                          owner.uid,
+                          _roomTitle.isNotEmpty ? _roomTitle : 'My Room',
+                        );
                         if (!mounted) return;
                         Navigator.push(
                           context,
