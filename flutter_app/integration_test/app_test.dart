@@ -53,7 +53,7 @@ class MockAuthService extends AuthService {
   }
 
   @override
-  Future<AuthResponse> registerWithEmail(String email, String password, String name, String role) async {
+  Future<AuthResponse> registerWithEmail(String email, String password, String name, String role, {String phone = ''}) async {
     final user = User(
       id: 'mock_uid_${email.split('@')[0]}',
       appMetadata: {},
