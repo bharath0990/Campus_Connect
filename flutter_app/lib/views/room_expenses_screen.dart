@@ -1047,6 +1047,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                 ),
         ],
       ),
+    ),
     );
   }
 
