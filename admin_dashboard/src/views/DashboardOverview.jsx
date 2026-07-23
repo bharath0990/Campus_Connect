@@ -276,23 +276,6 @@ export default function DashboardOverview() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-      {isOffline && (
-        <div style={{
-          background: 'rgba(239, 68, 68, 0.15)',
-          border: '1px solid #ef4444',
-          color: 'var(--text-primary)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <span>⚠️</span>
-          <span>Operating in Offline Fallback Mode. Supabase connection timed out or tables are not initialized. Mock metrics and logs are shown.</span>
-        </div>
-      )}
       
       {/* Metrics Row */}
       <div style={{

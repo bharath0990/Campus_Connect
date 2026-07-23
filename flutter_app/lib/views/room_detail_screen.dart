@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -93,7 +93,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
           .eq('student_id', widget.currentStudent.uid)
           .inFilter('status', ['Active', 'Requested', 'Confirmed']);
 
-      if (existingBookings is List && existingBookings.isNotEmpty) {
+      if (existingBookings.isNotEmpty) {
         final existingRoom = existingBookings[0]['rooms']?['title'] ?? 'another room';
         if (!mounted) return;
         showDialog(
@@ -430,6 +430,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         if (await canLaunchUrl(mapsUrl)) {
                           await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
                         } else {
+                          if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Could not open Google Maps')),
                           );
@@ -549,9 +550,9 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: isFull ? Colors.red.withOpacity(0.08) : Colors.green.withOpacity(0.08),
+                              color: isFull ? Colors.red.withValues(alpha: 0.08) : Colors.green.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isFull ? Colors.redAccent.withOpacity(0.3) : Colors.greenAccent.withOpacity(0.3)),
+                              border: Border.all(color: isFull ? Colors.redAccent.withValues(alpha: 0.3) : Colors.greenAccent.withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               children: [
@@ -782,7 +783,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                     widget.room.title,
                                     activeRoommateIds,
                                   );
-                                  if (!context.mounted) return;
+                                  if (!mounted) return;
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(

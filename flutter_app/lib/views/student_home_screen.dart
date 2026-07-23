@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'dart:convert';
 import 'dart:async';
-import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,16 +13,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'room_detail_screen.dart';
 import 'ticket_system_screen.dart';
-import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'roommate_match_screen.dart';
 import 'payment_success_screen.dart';
-import 'lease_agreement_screen.dart';
 import 'room_expenses_screen.dart';
 import 'razorpay_checkout_sheet.dart';
 import 'camera_scan_overlay.dart';
 import 'chats_list_screen.dart';
-import 'chat_room_screen.dart';
 import 'blocked_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
@@ -96,13 +92,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     
     final authService = Provider.of<AuthService>(context, listen: false);
     _profileSubscription = authService.streamUserProfile(_currentUser.uid).listen((profile) {
-      if (profile != null && profile.blocked && mounted) {
-        _profileSubscription?.cancel();
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const BlockedScreen()),
-          (route) => false,
-        );
+      if (profile != null && mounted) {
+        setState(() {
+          _currentUser = profile;
+        });
+        if (profile.blocked) {
+          _profileSubscription?.cancel();
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const BlockedScreen()),
+            (route) => false,
+          );
+        }
       }
     });
 
@@ -155,44 +156,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     }
   }
 
-  Widget _buildChoiceChips({
-    required String label,
-    required String currentValue,
-    required Map<String, String> options,
-    required ValueChanged<String> onSelected,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8.0,
-          runSpacing: 4.0,
-          children: options.entries.map((entry) {
-            final isSelected = currentValue == entry.key;
-            return ChoiceChip(
-              label: Text(entry.value),
-              selected: isSelected,
-              selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
-              checkmarkColor: Theme.of(context).primaryColor,
-              labelStyle: TextStyle(
-                color: isSelected ? Theme.of(context).primaryColor : Colors.black87,
-                fontWeight: isSelected ? FontWeight.bold : null,
-                fontSize: 12,
-              ),
-              onSelected: (selected) {
-                if (selected) {
-                  onSelected(entry.key);
-                }
-              },
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
 
   Future<void> _fetchLocation() async {
     setState(() {
@@ -302,7 +265,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   Widget _buildTrustBanner() {
     final isVerified = _currentUser.verified;
     return Card(
-      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
       child: InkWell(
         onTap: isVerified ? null : _showVerificationSheet,
         borderRadius: BorderRadius.circular(12),
@@ -312,7 +275,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                 child: Icon(
                   isVerified ? Icons.verified_rounded : Icons.pending_actions_rounded,
                   color: isVerified ? Colors.blueAccent : Colors.amber,
@@ -341,7 +304,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                       isVerified 
                           ? 'Your Aadhaar is verified. Trust Index Score: ${_currentUser.trustScore}'
                           : 'Tap here to upload student/ID card & earn CampusStay Trust Badge.',
-                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                     ),
                   ],
                 ),
@@ -749,7 +712,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         '📍 ${room.detailedAddress}',
-                                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -757,7 +720,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                         child: Text(
@@ -1275,33 +1238,58 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: _currentUser.verified 
+                        ? Colors.green.withValues(alpha: 0.12)
+                        : _currentUser.verificationDocs.isNotEmpty
+                            ? Colors.orange.withValues(alpha: 0.12)
+                            : Colors.amber.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _currentUser.verified 
+                          ? Colors.green.withValues(alpha: 0.4)
+                          : _currentUser.verificationDocs.isNotEmpty
+                              ? Colors.orange.withValues(alpha: 0.4)
+                              : Colors.amber.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: InkWell(
                     onTap: _currentUser.verified ? null : _showVerificationSheet,
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _currentUser.verified ? Icons.verified_user_rounded : Icons.gpp_maybe_rounded,
-                            color: _currentUser.verified ? Theme.of(context).primaryColor : Colors.amber,
+                            _currentUser.verified 
+                                ? Icons.verified_user_rounded 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? Icons.hourglass_top_rounded
+                                    : Icons.gpp_maybe_rounded,
+                            color: _currentUser.verified 
+                                ? Colors.green.shade700 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? Colors.orange.shade800
+                                    : Colors.amber.shade800,
                             size: 18,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _currentUser.verified 
-                                ? 'Verified (Score: ${_currentUser.trustScore})' 
-                                : 'Verify Now (Score: ${_currentUser.trustScore})',
+                                ? '✓ Verified Student Profile (Score: ${_currentUser.trustScore}%)' 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? '⏳ KYC Submitted - Awaiting Admin Approval'
+                                    : '⚠️ Verify Identity Now (Score: ${_currentUser.trustScore}%)',
                             style: TextStyle(
-                              color: _currentUser.verified ? Theme.of(context).primaryColor : Colors.amber,
+                              color: _currentUser.verified 
+                                  ? Colors.green.shade800 
+                                  : _currentUser.verificationDocs.isNotEmpty
+                                      ? Colors.orange.shade900
+                                      : Colors.amber.shade900,
                               fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -1309,6 +1297,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     ),
                   ),
                 ),
+
               ],
             ),
           ),
@@ -1379,7 +1368,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
               if (activeBookings.isEmpty) {
                 return Card(
-                  color: Colors.amber.shade50.withOpacity(0.3),
+                  color: Colors.amber.shade50.withValues(alpha: 0.3),
                   shape: RoundedRectangleBorder(
                     side: BorderSide(color: Colors.amber.shade200, width: 1),
                     borderRadius: BorderRadius.circular(12),
@@ -1446,7 +1435,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: rentPaidThisMonth ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+                                  color: rentPaidThisMonth ? Colors.green.withValues(alpha: 0.15) : Colors.orange.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(30),
                                 ),
                                 child: Text(
@@ -1622,7 +1611,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 Provider.of<AuthService>(context, listen: false).signOut();
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (_) => LoginSelectionScreen()),
+                  MaterialPageRoute(builder: (_) => const LoginSelectionScreen()),
                   (route) => false,
                 );
               },
@@ -1790,6 +1779,43 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
+  Future<Uint8List?> _pickImageWithSourceChoice(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Select Document Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFFD32F2F)),
+              title: const Text('Take Photo with Camera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Colors.blue),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return null;
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, imageQuality: 70);
+    if (file != null) {
+      return await file.readAsBytes();
+    }
+    return null;
+  }
+
   void _showVerificationSheet() {
     final authService = Provider.of<AuthService>(context, listen: false);
     String selectedDocType = 'Aadhaar Card';
@@ -1850,6 +1876,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   const Text('Select Document Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
                     value: selectedDocType,
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1880,10 +1907,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-                                if (file != null) {
-                                  final bytes = await file.readAsBytes();
+                                final bytes = await _pickImageWithSourceChoice(context);
+                                if (bytes != null) {
                                   setSheetState(() {
                                     frontBytes = bytes;
                                   });
@@ -1892,18 +1917,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                               child: Container(
                                 height: 110,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: Colors.grey.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                                 ),
                                 child: frontBytes == null
                                     ? const Center(
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+                                            Icon(Icons.add_photo_alternate_rounded, color: Colors.grey),
                                             SizedBox(height: 4),
-                                            Text('Capture Front', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text('Select Front (Camera/Gallery)', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                           ],
                                         ),
                                       )
@@ -1925,10 +1950,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-                                if (file != null) {
-                                  final bytes = await file.readAsBytes();
+                                final bytes = await _pickImageWithSourceChoice(context);
+                                if (bytes != null) {
                                   setSheetState(() {
                                     backBytes = bytes;
                                   });
@@ -1937,18 +1960,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                               child: Container(
                                 height: 110,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: Colors.grey.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                                 ),
                                 child: backBytes == null
                                     ? const Center(
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+                                            Icon(Icons.add_photo_alternate_rounded, color: Colors.grey),
                                             SizedBox(height: 4),
-                                            Text('Capture Back', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text('Select Back (Camera/Gallery)', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                           ],
                                         ),
                                       )
@@ -1963,6 +1986,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 24),
 
                   SizedBox(
@@ -2248,11 +2272,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                   }
                                   
                                   return Card(
-                                    color: isUnread ? Theme.of(context).primaryColor.withOpacity(0.04) : Colors.white,
+                                    color: isUnread ? Theme.of(context).primaryColor.withValues(alpha: 0.04) : Colors.white,
                                     margin: const EdgeInsets.symmetric(vertical: 4),
                                     child: ListTile(
                                       leading: CircleAvatar(
-                                        backgroundColor: color.withOpacity(0.1),
+                                        backgroundColor: color.withValues(alpha: 0.1),
                                         child: Icon(icon, color: color),
                                       ),
                                       title: Text(
@@ -2710,7 +2734,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
+                        color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.orange),
                       ),
@@ -2908,7 +2932,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: isApproved ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                color: isApproved ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isApproved ? Colors.green : Colors.red),
               ),

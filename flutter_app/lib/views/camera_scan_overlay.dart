@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -36,7 +36,7 @@ class _CameraScanOverlayState extends State<CameraScanOverlay> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.black.withOpacity(0.95),
+      color: Colors.black.withValues(alpha: 0.95),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -66,7 +66,7 @@ class _CameraScanOverlayState extends State<CameraScanOverlay> with SingleTicker
                     color: Colors.greenAccent,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.greenAccent.withOpacity(0.8),
+                        color: Colors.greenAccent.withValues(alpha: 0.8),
                         blurRadius: 12,
                         spreadRadius: 4,
                       ),

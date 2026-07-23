@@ -11,7 +11,7 @@ void main() async {
   try {
     await Supabase.initialize(
       url: 'https://qynghqgbitcbczvfervg.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5bmdocWdiaXRjYmN6dmZlcnZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODQwMjQsImV4cCI6MjA5NjE2MDAyNH0.Bu5Zb5a9y2_mUfTB9TaPW1_fgPRce4VzLPgwWjucwJg',
+      publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5bmdocWdiaXRjYmN6dmZlcnZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1ODQwMjQsImV4cCI6MjA5NjE2MDAyNH0.Bu5Zb5a9y2_mUfTB9TaPW1_fgPRce4VzLPgwWjucwJg',
     );
   } catch (e) {
     supabaseRunning = false;
@@ -74,8 +74,7 @@ class CampusStayApp extends StatelessWidget {
             primary: const Color(0xFFD32F2F),
             secondary: const Color(0xFFE53935),
             onPrimary: Colors.white,
-            surface: Colors.white,
-            background: const Color(0xFFFAFAFA),
+            surface: const Color(0xFFFAFAFA),
           ),
           fontFamily: 'Outfit',
           appBarTheme: const AppBarTheme(

@@ -28,7 +28,7 @@ void main() {
     try {
       await Supabase.initialize(
         url: 'https://placeholder.supabase.co',
-        anonKey: 'placeholder_key_placeholder_key_placeholder_key',
+        publishableKey: 'placeholder_key_placeholder_key_placeholder_key',
       );
     } catch (_) {}
   });

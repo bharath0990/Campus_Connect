@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
 
 class PaymentSuccessScreen extends StatefulWidget {
   final String bookingId;
@@ -136,15 +135,15 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Booking ID', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                        Text(widget.bookingId.substring(0, 18) + '...', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('${widget.bookingId.substring(0, 18)}...', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       ],
                     ),
                     const Divider(height: 24, color: Colors.white10),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Payment Mode', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                        const Row(
+                        Text('Payment Mode', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Row(
                           children: [
                             Icon(Icons.security, size: 14, color: Colors.greenAccent),
                             SizedBox(width: 4),

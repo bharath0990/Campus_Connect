@@ -1,4 +1,4 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 
@@ -43,7 +43,7 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   blurRadius: size * 0.7,
                   spreadRadius: size * 0.1,
                 )
@@ -93,19 +93,19 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
                 padding: const EdgeInsets.all(24.0),
                 decoration: BoxDecoration(
                   color: isHovered
-                      ? color.withOpacity(0.25)
-                      : Colors.white.withOpacity(0.45),
+                      ? color.withValues(alpha: 0.25)
+                      : Colors.white.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isHovered
-                        ? color.withOpacity(0.5)
-                        : Colors.black12.withOpacity(0.08),
+                        ? color.withValues(alpha: 0.5)
+                        : Colors.black12.withValues(alpha: 0.08),
                     width: 1.5,
                   ),
                   boxShadow: [
                     if (isHovered)
                       BoxShadow(
-                        color: color.withOpacity(0.15),
+                        color: color.withValues(alpha: 0.15),
                         blurRadius: 20,
                         spreadRadius: -2,
                       )
@@ -116,10 +116,10 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.black12.withOpacity(0.04),
+                          color: Colors.black12.withValues(alpha: 0.04),
                         ),
                       ),
                       child: Text(
@@ -200,9 +200,9 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.12),
+                          color: primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: primaryColor.withOpacity(0.2)),
+                          border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                         ),
                         child: Icon(Icons.home_work_rounded, color: primaryColor, size: 28),
                       ),
@@ -236,7 +236,7 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
                     style: TextStyle(
                       fontSize: 14.5,
                       height: 1.4,
-                      color: Colors.black87.withOpacity(0.6),
+                      color: Colors.black87.withValues(alpha: 0.6),
                     ),
                   ),
                   
@@ -275,10 +275,10 @@ class _LoginSelectionScreenState extends State<LoginSelectionScreen> with Single
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.02),
+                            color: Colors.black.withValues(alpha: 0.02),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                             ),
                           ),
                           child: Text(

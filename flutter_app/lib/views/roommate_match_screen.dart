@@ -14,7 +14,6 @@ class RoommateMatchScreen extends StatefulWidget {
 }
 
 class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
-  int _cardIndex = 0;
   List<Map<String, dynamic>> _candidates = [];
   bool _loading = true;
 
@@ -134,7 +133,6 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
     if (mounted) {
       setState(() {
         _candidates = results.map((u) => _candidateFromUser(u)).toList();
-        _cardIndex = 0;
         _loading = false;
       });
     }
@@ -158,184 +156,9 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
     };
   }
 
-  void _handleSwipe(bool like) {
-    if (_candidates.isEmpty) return;
-    if (like) {
-      final matchedUser = _candidates[_cardIndex];
-      _showMatchDialog(matchedUser);
-    } else {
-      _advanceCard();
-    }
-  }
 
-  void _advanceCard() {
-    if (_candidates.isEmpty) return;
-    setState(() {
-      _cardIndex = (_cardIndex + 1) % _candidates.length;
-    });
-  }
 
-  void _showMatchDialog(Map<String, dynamic> candidate) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('🔥 IT\'S A MATCH!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(radius: 36, backgroundImage: NetworkImage(widget.currentUser.profilePic)),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.favorite, color: Colors.redAccent, size: 30),
-                  const SizedBox(width: 10),
-                  CircleAvatar(radius: 36, backgroundImage: NetworkImage(candidate['avatar'])),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'You and ${candidate['name']} have ${candidate['matchPercentage']}% compatibility. Start a chat room to connect.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final chatService = Provider.of<ChatService>(context, listen: false);
-                    final chatRoomId = await chatService.getOrCreateChatRoom(
-                      widget.currentUser.uid,
-                      candidate['uid'].toString(),
-                      'Roommate Compatibility',
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatRoomScreen(
-                          chatRoomId: chatRoomId,
-                          currentUserId: widget.currentUser.uid,
-                          currentUserName: widget.currentUser.name,
-                          peerName: candidate['name'],
-                        ),
-                      ),
-                    );
-                    _advanceCard();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Send Message Now'),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _advanceCard();
-                },
-                child: const Text('Keep Swiping', style: TextStyle(color: Colors.grey)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildTranslucentBadge(BuildContext context, {required IconData icon, required String label, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBreakdownSheet(BuildContext context, Map<String, dynamic> candidate) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${candidate['name']}\'s Profile Index',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(color: Colors.white10),
-              const SizedBox(height: 12),
-              const Text(
-                'Compatibility Score Breakdown',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              ... (candidate['details'] as List).map((det) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(det['criteria'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                          Text('${det['score']} / 30', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(
-                        value: det['score'] / 30.0,
-                        backgroundColor: Colors.white10,
-                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildFriendsListView() {
     if (_loadingFriends || _loadingPending) {
@@ -373,7 +196,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
           ... _receivedRequestsList.map((req) {
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              color: Colors.amber.shade50.withOpacity(0.15),
+              color: Colors.amber.shade50.withValues(alpha: 0.15),
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundImage: NetworkImage(req.profilePic),
@@ -389,6 +212,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                       tooltip: 'Accept Request',
                       onPressed: () async {
                         final success = await db.acceptFriendRequest(widget.currentUser.uid, req.uid);
+                        if (!mounted) return;
                         if (success) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accepted friend request from ${req.name}')));
                         } else {
@@ -401,6 +225,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                       tooltip: 'Decline Request',
                       onPressed: () async {
                         final success = await db.removeFriend(widget.currentUser.uid, req.uid);
+                        if (!mounted) return;
                         if (success) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Declined request from ${req.name}')));
                         } else {
@@ -452,7 +277,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           friend.uid,
                           'Roommate Friends Chat',
                         );
-                        if (!context.mounted) return;
+                        if (!mounted) return;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -471,6 +296,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                       tooltip: 'Remove Friend',
                       onPressed: () async {
                         final success = await db.removeFriend(widget.currentUser.uid, friend.uid);
+                        if (!mounted) return;
                         if (success) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
                         } else {
@@ -564,7 +390,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -627,6 +453,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           return OutlinedButton.icon(
                             onPressed: () async {
                               final success = await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              if (!mounted) return;
                               if (success) {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed friend connection.')));
                               } else {
@@ -646,6 +473,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           return OutlinedButton.icon(
                             onPressed: () async {
                               final success = await db.removeFriend(widget.currentUser.uid, candidateUid);
+                              if (!mounted) return;
                               if (success) {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cancelled friend request.')));
                               } else {
@@ -665,6 +493,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           return ElevatedButton.icon(
                             onPressed: () async {
                               final success = await db.acceptFriendRequest(widget.currentUser.uid, candidateUid);
+                              if (!mounted) return;
                               if (success) {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request accepted!')));
                               } else {
@@ -684,6 +513,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           return ElevatedButton.icon(
                             onPressed: () async {
                               final success = await db.addFriend(widget.currentUser.uid, candidateUid);
+                              if (!mounted) return;
                               if (success) {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent!')));
                               } else {
@@ -713,7 +543,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
                           candidateUid,
                           'Roommate Compatibility',
                         );
-                        if (!context.mounted) return;
+                        if (!mounted) return;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -749,7 +579,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -759,7 +589,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(color: color.withOpacity(0.9), fontSize: 9, fontWeight: FontWeight.bold),
+            style: TextStyle(color: color.withValues(alpha: 0.9), fontSize: 9, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -775,7 +605,7 @@ class _RoommateMatchScreenState extends State<RoommateMatchScreen> {
           margin: const EdgeInsets.all(16),
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(

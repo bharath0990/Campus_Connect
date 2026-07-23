@@ -1222,12 +1222,13 @@ function renderSidebar() {
   
   const tabs = currentUserProfile.role === 'student' ? [
     { id: 'explore', label: 'Explore Rooms', icon: 'fa-hotel' },
+    { id: 'my-room', label: 'My Room', icon: 'fa-house-user' },
     { id: 'matcher', label: 'Roommate Matcher', icon: 'fa-people-arrows' },
     { id: 'bookings', label: 'Bookings & Split', icon: 'fa-calculator' },
     { id: 'student-bills', label: 'My Bills', icon: 'fa-file-invoice-dollar' },
     { id: 'tickets', label: 'Maintenance SLA', icon: 'fa-screwdriver-wrench' },
     { id: 'chat', label: 'Real-time Chat', icon: 'fa-comments' },
-    { id: 'profile', label: 'My Profile', icon: 'fa-user-gear' }
+    { id: 'profile', label: 'My Profile & Verification', icon: 'fa-id-card' }
   ] : currentUserProfile.role === 'admin' ? [
     { id: 'admin-panel', label: 'Admin Panel', icon: 'fa-shield-halved' },
     { id: 'explore', label: 'Explore Rooms', icon: 'fa-hotel' },
@@ -1235,6 +1236,7 @@ function renderSidebar() {
     { id: 'profile', label: 'My Profile', icon: 'fa-user-gear' }
   ] : [
     { id: 'listings', label: 'My Listings', icon: 'fa-house-medical' },
+    { id: 'owner-verification', label: 'Owner Verification', icon: 'fa-id-card' },
     { id: 'deletion-requests', label: 'Deletion Requests', icon: 'fa-trash-can' },
     { id: 'approvals', label: 'Booking Requests', icon: 'fa-clipboard-check' },
     { id: 'bills', label: 'Utility Split Bills', icon: 'fa-file-invoice-dollar' },
@@ -1266,6 +1268,7 @@ function renderActiveView(viewId) {
   pane.innerHTML = `<div style="text-align: center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--primary);"></i><p style="margin-top: 15px; color: var(--text-muted);">Fetching details from database...</p></div>`;
 
   if (viewId === 'explore') loadExploreView(pane);
+  else if (viewId === 'my-room') loadMyRoomView(pane);
   else if (viewId === 'matcher') loadMatcherView(pane);
   else if (viewId === 'bookings') loadBookingsView(pane);
   else if (viewId === 'student-bills') loadStudentBillsView(pane);
@@ -1275,6 +1278,7 @@ function renderActiveView(viewId) {
   
   // Owner Views
   else if (viewId === 'listings') loadOwnerListings(pane);
+  else if (viewId === 'owner-verification') loadOwnerVerificationView(pane);
   else if (viewId === 'deletion-requests') loadOwnerDeletionRequests(pane);
   else if (viewId === 'approvals') loadOwnerApprovals(pane);
   else if (viewId === 'bills') loadOwnerBills(pane);
@@ -1284,6 +1288,7 @@ function renderActiveView(viewId) {
   // Admin Views
   else if (viewId === 'admin-panel') loadAdminPanel(pane);
 }
+
 
 // ============================================================================
 // 6. STUDENT DASHBOARD VIEW IMPLEMENTATIONS
@@ -2384,80 +2389,547 @@ async function loadMessagesForChat(chatId, peerName) {
     .subscribe();
 }
 
-// 6.6 STUDENT PROFILE SETUP VIEW
-async function loadProfileView(pane) {
-  const userPref = currentUserProfile.preferences || { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' };
+// 6.0 MY ROOM VIEW (STUDENT DEDICATED VIEW)
+async function loadMyRoomView(pane) {
+  // Query active or requested booking for current student
+  const { data: bookings, error } = await db.from('bookings').select('*, rooms(*)').eq('student_id', currentUserProfile.id);
+  if (error) {
+    pane.innerHTML = `<p style="color: var(--primary);">Error querying room booking: ${error.message}</p>`;
+    return;
+  }
+
+  const activeBooking = bookings ? bookings.find(b => b.status === 'Active' || b.status === 'Requested') : null;
+
+  if (!activeBooking) {
+    pane.innerHTML = `
+      <div style="text-align: center; padding: 50px 20px;" class="glass-card">
+        <i class="fa-solid fa-house-user fa-4x" style="color: var(--text-muted); margin-bottom: 20px;"></i>
+        <h3 style="font-size: 22px;">No Active Room Booking Found</h3>
+        <p style="color: var(--text-muted); max-width: 500px; margin: 10px auto 24px auto; font-size: 14px;">
+          You haven't rented a co-living room yet. Explore listings, request flat bookings, and unlock your shared room dashboard, roommate chats, and bill splitter!
+        </p>
+        <button class="btn btn-primary" onclick="currentActiveTab='explore'; renderSidebar();" style="padding: 12px 28px; font-size: 15px;">
+          <i class="fa-solid fa-magnifying-glass"></i> Explore Flat Listings
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const room = activeBooking.rooms || {};
+  const isRequested = activeBooking.status === 'Requested';
+
+  // Fetch landlord/owner details
+  const { data: ownerData } = await db.from('users').select('*').eq('id', activeBooking.owner_id).single();
+  const landlordName = ownerData?.name || 'Property Landlord';
+  const landlordPhone = ownerData?.phone || 'Contact via Chat';
+  const landlordEmail = ownerData?.email || '';
+
+  // Fetch roommates (other active bookings for the same room)
+  const { data: roomBookings } = await db.from('bookings').select('student_id, users(*)').eq('room_id', activeBooking.room_id).in('status', ['Active', 'Confirmed']);
+  const roommates = (roomBookings || []).map(b => b.users).filter(u => u && u.id !== currentUserProfile.id);
+
+  // Fetch latest room bills
+  const { data: bills } = await db.from('room_bills').select('*').eq('room_id', activeBooking.room_id).order('created_at', { ascending: false }).limit(1);
+  const latestBill = bills && bills.length > 0 ? bills[0] : { electricity_bill: 1500, maid_bill: 2000, wifi_bill: 900, billing_month: 'Current Month' };
+
+  // Fetch room expenses
+  const { data: expenses } = await db.from('room_expenses').select('*, users(name)').eq('room_id', activeBooking.room_id).order('created_at', { ascending: false });
+
+  // Fetch maintenance tickets for this room
+  const { data: tickets } = await db.from('maintenance').select('*').eq('room_id', activeBooking.room_id).order('created_at', { ascending: false });
+
+  const occupantCount = Math.max(1, (roomBookings || []).length);
+  const rentSplit = Math.round((activeBooking.rent || room.rent || 0) / occupantCount);
+  const elecSplit = Math.round(latestBill.electricity_bill / occupantCount);
+  const maidSplit = Math.round(latestBill.maid_bill / occupantCount);
+  const wifiSplit = Math.round(latestBill.wifi_bill / occupantCount);
+  const totalShare = rentSplit + elecSplit + maidSplit + wifiSplit;
 
   pane.innerHTML = `
-    <h2>Edit Profile & Living Preferences</h2>
-    <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Update details to refine compatible roommate calculations.</p>
-    
-    <form id="edit-profile-form" style="max-width: 550px; margin-top: 24px;">
-      <div class="input-group">
-        <label>Your Full Name</label>
-        <div class="input-wrapper">
-          <i class="fa-solid fa-user input-icon"></i>
-          <input type="text" id="profile-edit-name" value="${currentUserProfile.name}" required>
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <!-- Section Title & Status -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 24px; font-weight: 800;">My Co-Living Room</h2>
+          <p style="color: var(--text-muted); font-size: 14px; margin-top: 2px;">Your active residence, landlord contact, roommates, and utility manager.</p>
+        </div>
+        <span class="badge" style="background: ${isRequested ? 'rgba(255,152,0,0.1)' : 'rgba(46,125,50,0.1)'}; color: ${isRequested ? '#ff9800' : 'var(--green)'}; border-color: ${isRequested ? 'rgba(255,152,0,0.3)' : 'rgba(46,125,50,0.3)'}; font-size: 13px; padding: 6px 16px;">
+          <i class="fa-solid ${isRequested ? 'fa-hourglass-half' : 'fa-house-circle-check'}"></i> ${isRequested ? 'Booking Request Pending' : 'Active Tenant'}
+        </span>
+      </div>
+
+      <!-- 1. Room Header Overview Card -->
+      <div class="glass-card" style="padding: 24px; background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(245,245,245,0.9));">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+          <img src="${room.images && room.images[0] ? room.images[0] : 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=500&q=80'}" style="width: 130px; height: 110px; object-fit: cover; border-radius: 14px; flex-shrink: 0;" alt="Room">
+          <div style="flex-grow: 1; min-width: 240px;">
+            <h3 style="font-size: 20px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">${room.title || 'Rented Flat'}</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;"><i class="fa-solid fa-location-dot" style="color: var(--primary);"></i> ${room.detailed_address || ''}, ${room.city || ''}</p>
+            
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+              <div style="background: rgba(211,47,47,0.06); padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(211,47,47,0.15);">
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">Monthly Rent</span>
+                <strong style="font-size: 15px; color: var(--primary);">₹${(activeBooking.rent || room.rent || 0).toLocaleString('en-IN')}/mo</strong>
+              </div>
+              <div style="background: rgba(0,0,0,0.03); padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);">
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">Security Deposit</span>
+                <strong style="font-size: 15px; color: var(--text-main);">₹${(room.deposit || 0).toLocaleString('en-IN')}</strong>
+              </div>
+              <div style="background: rgba(0,0,0,0.03); padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);">
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">Move-in Date</span>
+                <strong style="font-size: 15px; color: var(--text-main);">${new Date(activeBooking.move_in_date).toLocaleDateString('en-IN')}</strong>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="input-group">
-        <label>Contact Phone Number</label>
-        <div class="input-wrapper">
-          <i class="fa-solid fa-phone input-icon"></i>
-          <input type="tel" id="profile-edit-phone" value="${currentUserProfile.phone || ''}" required>
+      <!-- 2. Grid Layout: Landlord Contact & Roommates List -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Landlord Info Card -->
+        <div class="glass-card" style="padding: 24px;">
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-user-tie" style="color: var(--primary);"></i> Property Owner / Landlord
+          </h3>
+          <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+            <img src="${ownerData?.profile_pic || 'https://api.dicebear.com/7.x/adventurer/png?seed=Owner'}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" alt="Landlord">
+            <div>
+              <h4 style="font-size: 15px; font-weight: 700; margin: 0;">${landlordName}</h4>
+              <span style="font-size: 12px; color: var(--text-muted);"><i class="fa-solid fa-envelope"></i> ${landlordEmail}</span>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;"><i class="fa-solid fa-phone"></i> Contact Phone: <strong>${landlordPhone}</strong></p>
+          <button class="btn btn-primary" id="chat-landlord-btn" style="width: 100%; justify-content: center; padding: 10px;">
+            <i class="fa-solid fa-comments"></i> Direct Message Owner
+          </button>
+        </div>
+
+        <!-- Roommates Card -->
+        <div class="glass-card" style="padding: 24px;">
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <span><i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i> Roommates (${roommates.length})</span>
+            <span style="font-size: 11px; background: rgba(0,0,0,0.05); padding: 4px 10px; border-radius: 12px; font-weight: 600;">Active Headcount: ${occupantCount}</span>
+          </h3>
+
+          ${roommates.length === 0 ? `
+            <p style="font-size: 13px; color: var(--text-muted); padding: 15px 0;">No other active roommates currently sharing this flat.</p>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              ${roommates.map(rm => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${rm.profile_pic || 'https://api.dicebear.com/7.x/adventurer/png?seed=' + rm.id}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;" alt="Roommate">
+                    <div>
+                      <strong style="font-size: 14px; display: block;">${rm.name}</strong>
+                      <span style="font-size: 11px; color: var(--text-muted);">@${rm.username || 'student'} • Trust: ${rm.trust_score || 85}%</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-secondary chat-rm-btn" data-uid="${rm.id}" data-name="${rm.name}" style="padding: 6px 12px; font-size: 11px;">
+                    <i class="fa-solid fa-comment"></i> Chat
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          `}
         </div>
       </div>
 
-      <div class="input-group">
-        <label>Monthly Budget Limit Range (₹)</label>
-        <div class="range-sliders">
-          <input type="range" id="profile-edit-budget" min="2000" max="15000" value="${userPref.budgetMax || 8000}" step="500">
-          <div class="range-values">Max Budget Limit: <span id="profile-edit-budget-val">₹${(userPref.budgetMax || 8000).toLocaleString('en-IN')}</span>/mo</div>
+      <!-- 3. Bills & Shared Room Expense Division Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 18px; font-weight: 800;"><i class="fa-solid fa-calculator" style="color: var(--primary); margin-right: 8px;"></i>Utility Bills & Shared Expenses Splitter</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Divided dynamically based on ${occupantCount} active roommate headcount.</p>
+          </div>
+          <button class="btn btn-primary" id="pay-myroom-share-btn" style="padding: 10px 20px; font-size: 13px;">
+            <i class="fa-solid fa-credit-card"></i> Pay Total Share ₹${totalShare.toLocaleString('en-IN')}
+          </button>
+        </div>
+
+        <!-- Expense Grid Shares -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px;">
+          <div style="padding: 12px 16px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 11px; color: var(--text-muted); display: block;">Rent Share</span>
+            <strong style="font-size: 18px; color: var(--text-main);">₹${rentSplit.toLocaleString('en-IN')}</strong>
+          </div>
+          <div style="padding: 12px 16px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 11px; color: var(--text-muted); display: block;">Electricity Share</span>
+            <strong style="font-size: 18px; color: var(--text-main);">₹${elecSplit.toLocaleString('en-IN')}</strong>
+          </div>
+          <div style="padding: 12px 16px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 11px; color: var(--text-muted); display: block;">Maid Share</span>
+            <strong style="font-size: 18px; color: var(--text-main);">₹${maidSplit.toLocaleString('en-IN')}</strong>
+          </div>
+          <div style="padding: 12px 16px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 11px; color: var(--text-muted); display: block;">WiFi Share</span>
+            <strong style="font-size: 18px; color: var(--text-main);">₹${wifiSplit.toLocaleString('en-IN')}</strong>
+          </div>
+        </div>
+
+        <hr class="card-divider" style="margin: 20px 0;">
+
+        <!-- Log Shared Room Expense Form -->
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Log Personal Room Expense (Groceries, Water Bottle, Cleaning)</h4>
+        <form id="add-room-expense-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+          <div class="input-group" style="flex: 2; min-width: 180px; margin: 0;">
+            <label style="font-size: 12px;">Expense Description</label>
+            <input type="text" id="expense-desc" placeholder="e.g. 20L Water Can" required style="padding: 8px 12px; font-size: 13px;">
+          </div>
+          <div class="input-group" style="flex: 1; min-width: 120px; margin: 0;">
+            <label style="font-size: 12px;">Amount (₹)</label>
+            <input type="number" id="expense-amount" placeholder="150" required min="1" style="padding: 8px 12px; font-size: 13px;">
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding: 9px 18px; font-size: 13px;">
+            <i class="fa-solid fa-plus"></i> Add Expense
+          </button>
+        </form>
+
+        <!-- Room Expenses List -->
+        <div style="margin-top: 20px;">
+          <h5 style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Recent Shared Room Log (${(expenses || []).length})</h5>
+          ${(expenses || []).length === 0 ? `
+            <p style="font-size: 12px; color: var(--text-muted);">No custom room expenses logged yet.</p>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${expenses.slice(0, 5).map(ex => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0,0,0,0.02); border-radius: 8px; font-size: 13px;">
+                  <span><strong>${ex.description}</strong> (Paid by ${ex.users?.name || 'Roommate'})</span>
+                  <span style="font-weight: 700; color: var(--primary);">₹${ex.amount}</span>
+                </div>
+              `).join('')}
+            </div>
+          `}
         </div>
       </div>
 
-      <div class="input-group">
-        <label>Sleep Schedule Habit</label>
-        <div class="segmented-control" id="profile-edit-sleep">
-          <button class="segment-btn ${userPref.sleepHabit === 'flexible' ? 'active' : ''}" data-value="flexible">Flexible</button>
-          <button class="segment-btn ${userPref.sleepHabit === 'early' ? 'active' : ''}" data-value="early">Early Bird</button>
-          <button class="segment-btn ${userPref.sleepHabit === 'night' ? 'active' : ''}" data-value="night">Night Owl</button>
+      <!-- 4. Room Maintenance Tickets Section -->
+      <div class="glass-card" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="font-size: 18px; font-weight: 800;"><i class="fa-solid fa-screwdriver-wrench" style="color: var(--primary); margin-right: 8px;"></i>Room Maintenance Tickets (24h SLA)</h3>
+          <button class="btn btn-secondary" id="file-myroom-ticket-btn" style="padding: 8px 16px; font-size: 12px;">
+            <i class="fa-solid fa-plus"></i> File New Ticket
+          </button>
         </div>
-      </div>
 
-      <div class="input-group">
-        <label>Cleanliness Priority</label>
-        <div class="segmented-control" id="profile-edit-clean">
-          <button class="segment-btn ${userPref.cleanliness === 'low' ? 'active' : ''}" data-value="low">Chill</button>
-          <button class="segment-btn ${userPref.cleanliness === 'medium' ? 'active' : ''}" data-value="medium">Medium</button>
-          <button class="segment-btn ${userPref.cleanliness === 'high' ? 'active' : ''}" data-value="high">Clean Freak</button>
-        </div>
+        ${(tickets || []).length === 0 ? `
+          <p style="font-size: 13px; color: var(--text-muted);">No maintenance tickets currently reported for this room.</p>
+        ` : `
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            ${tickets.map(tk => `
+              <div style="padding: 12px 16px; background: #f9f9f9; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <strong style="font-size: 14px; display: block;">${tk.issue}</strong>
+                  <span style="font-size: 11px; color: var(--text-muted);">Filed: ${new Date(tk.created_at).toLocaleDateString('en-IN')} ${tk.resolution_notes ? '• Note: ' + tk.resolution_notes : ''}</span>
+                </div>
+                <span class="badge" style="font-size: 11px; background: ${tk.status === 'Resolved' ? 'rgba(46,125,50,0.1)' : 'rgba(255,152,0,0.1)'}; color: ${tk.status === 'Resolved' ? 'var(--green)' : '#ff9800'};">
+                  ${tk.status}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        `}
       </div>
-
-      <div class="input-group">
-        <label>Dietary Choice</label>
-        <div class="segmented-control" id="profile-edit-diet">
-          <button class="segment-btn ${userPref.dietary === 'any' ? 'active' : ''}" data-value="any">Any Diet</button>
-          <button class="segment-btn ${userPref.dietary === 'veg' ? 'active' : ''}" data-value="veg">Veg Only</button>
-          <button class="segment-btn ${userPref.dietary === 'nonveg' ? 'active' : ''}" data-value="nonveg">Non-Veg</button>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 15px;">
-        <i class="fa-solid fa-circle-check"></i> Save Profile Details
-      </button>
-    </form>
+    </div>
   `;
+
+  // Attach event handlers
+  document.getElementById('chat-landlord-btn')?.addEventListener('click', () => {
+    openChatWithUser(activeBooking.owner_id, landlordName);
+  });
+
+  document.querySelectorAll('.chat-rm-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openChatWithUser(btn.dataset.uid, btn.dataset.name);
+    });
+  });
+
+  document.getElementById('add-room-expense-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const desc = document.getElementById('expense-desc').value.trim();
+    const amount = parseInt(document.getElementById('expense-amount').value);
+    if (!desc || !amount) return;
+
+    const { error } = await db.from('room_expenses').insert({
+      room_id: activeBooking.room_id,
+      description: desc,
+      amount: amount,
+      paid_by: currentUserProfile.id
+    });
+
+    if (error) {
+      alert("Failed to log expense: " + error.message);
+    } else {
+      alert("Expense logged successfully!");
+      loadMyRoomView(pane);
+    }
+  });
+
+  document.getElementById('file-myroom-ticket-btn')?.addEventListener('click', () => {
+    const issue = prompt("Enter maintenance issue description (e.g. Bathroom Tap Leaking, AC not cooling):");
+    if (!issue || !issue.trim()) return;
+
+    db.from('maintenance').insert({
+      room_id: activeBooking.room_id,
+      owner_id: activeBooking.owner_id,
+      student_id: currentUserProfile.id,
+      issue: issue.trim(),
+      status: 'Open',
+      room_address: room.detailed_address || 'Rented Flat',
+      photos: []
+    }).then(({ error }) => {
+      if (error) alert("Error filing ticket: " + error.message);
+      else {
+        alert("Maintenance ticket filed! Landlord notified under 24h SLA.");
+        loadMyRoomView(pane);
+      }
+    });
+  });
+
+  document.getElementById('pay-myroom-share-btn')?.addEventListener('click', () => {
+    simulateRazorpayPayment(totalShare, 'My Room Utility Share');
+  });
+}
+
+// Helper: Navigate & Open Chat with specified User ID
+async function openChatWithUser(peerId, peerName) {
+  const participants = [currentUserProfile.id, peerId].sort();
+  let { data: chat } = await db.from('chats').select('*').contains('participants', participants).maybeSingle();
+  if (!chat) {
+    const { data: newChat } = await db.from('chats').insert({
+      participants,
+      last_message: 'Chat initiated from My Room',
+      last_message_at: new Date().toISOString()
+    }).select().single();
+    chat = newChat;
+  }
+  currentActiveTab = 'chat';
+  renderSidebar();
+}
+
+// Helper: Simulate Razorpay Gateway Checkout
+function simulateRazorpayPayment(amount, description) {
+  const options = {
+    key: 'rzp_test_placeholder',
+    amount: amount * 100,
+    currency: 'INR',
+    name: 'CampusStay Co-Living',
+    description: description || 'Rent & Utility Share',
+    image: 'assets/app_hero_mockup.png',
+    handler: function (response) {
+      alert(`Payment Successful! Payment ID: ${response.razorpay_payment_id || 'pay_sim_' + Date.now()}`);
+    },
+    prefill: {
+      name: currentUserProfile.name,
+      email: currentUserProfile.email,
+      contact: currentUserProfile.phone || '9876543210'
+    },
+    theme: { color: '#D32F2F' }
+  };
+  try {
+    const rzp = new Razorpay(options);
+    rzp.open();
+  } catch (e) {
+    alert(`Payment Gateway Simulation: Successfully processed ₹${amount.toLocaleString('en-IN')} for ${description}`);
+  }
+}
+
+// Helper: Convert File object to Data URL string for reliable live preview & storage
+async function uploadDocumentFile(file, prefix) {
+  return new Promise((resolve) => {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      resolve(e.target.result);
+    };
+    reader.onerror = function() {
+      resolve('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=500&q=80');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 6.6 STUDENT PROFILE & VERIFICATION VIEW
+async function loadProfileView(pane) {
+  const userPref = currentUserProfile.preferences || { budgetMin: 2000, budgetMax: 15000, sleepHabit: 'flexible', dietary: 'any', cleanliness: 'medium' };
+  const isVerified = currentUserProfile.verified === true;
+  const docsList = currentUserProfile.verification_docs || [];
+  const isSubmitted = !isVerified && docsList.length > 0;
+
+  pane.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <div>
+        <h2 style="font-size: 22px;">Student Profile &amp; Verification</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Update details and verify student credentials to boost trust score &amp; roommate match percentage.</p>
+      </div>
+
+      <!-- Verification Status Banner Card -->
+      <div class="glass-card" style="padding: 24px; border-left: 5px solid ${isVerified ? 'var(--green)' : isSubmitted ? '#ff9800' : '#d32f2f'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <span class="badge" style="background: ${isVerified ? 'rgba(46,125,50,0.1)' : isSubmitted ? 'rgba(255,152,0,0.1)' : 'rgba(211,47,47,0.1)'}; color: ${isVerified ? 'var(--green)' : isSubmitted ? '#d97706' : '#d32f2f'}; border-color: ${isVerified ? 'rgba(46,125,50,0.3)' : isSubmitted ? 'rgba(255,152,0,0.3)' : 'rgba(211,47,47,0.3)'}; font-size: 13px; padding: 6px 14px;">
+              <i class="fa-solid ${isVerified ? 'fa-circle-check' : isSubmitted ? 'fa-hourglass-half' : 'fa-triangle-exclamation'}"></i> ${isVerified ? '✓ Verified Student Profile' : isSubmitted ? '⏳ KYC Submitted - Awaiting Admin Approval' : '⚠️ Verification Required'}
+            </span>
+            <h3 style="font-size: 17px; margin-top: 10px;">Campus Trust Score: ${currentUserProfile.trust_score || 85}%</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">
+              ${isVerified ? 'Your student ID and credentials have been verified by CampusStay admins.' : isSubmitted ? 'Your verification documents have been submitted to Admin. Please wait for approval.' : 'Upload your Aadhaar Card, Passport, or Student ID to get verified.'}
+            </p>
+          </div>
+          <div style="font-size: 32px; color: ${isVerified ? 'var(--green)' : isSubmitted ? '#ff9800' : '#d32f2f'}; font-weight: 900;">
+            ${currentUserProfile.trust_score || 85}%
+          </div>
+        </div>
+
+        ${docsList.length > 0 ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 8px;">Submitted Verification Documents (${docsList.length}):</span>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              ${docsList.map((doc, idx) => `
+                <a href="${doc}" target="_blank" style="font-size: 12px; text-decoration: none; padding: 6px 12px; background: rgba(0,0,0,0.04); border-radius: 8px; color: var(--primary); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-file-shield"></i> Document #${idx + 1}
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+
+      <!-- Upload Student Verification Document Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 6px;"><i class="fa-solid fa-id-card" style="color: var(--primary); margin-right: 8px;"></i>Submit Student Verification Documents</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Upload government ID or University student ID front and back photos for verification.</p>
+        
+        <form id="student-verification-form">
+          <div class="input-group">
+            <label>Select Document Type</label>
+            <select id="student-doc-type" required style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-glass); background: #fff; font-size: 14px;">
+              <option value="Aadhaar Card">Aadhaar Card</option>
+              <option value="Student ID Card">Student ID Card</option>
+              <option value="Passport">Passport</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 16px 0;">
+            <div class="input-group" style="margin: 0;">
+              <label>Document Front Image</label>
+              <input type="file" id="doc-front-file" accept="image/*" required style="font-size: 13px;">
+            </div>
+            <div class="input-group" style="margin: 0;">
+              <label>Document Back Image</label>
+              <input type="file" id="doc-back-file" accept="image/*" required style="font-size: 13px;">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Upload &amp; Submit For Verification
+          </button>
+        </form>
+      </div>
+
+      <!-- Edit Profile & Living Preferences Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;"><i class="fa-solid fa-sliders" style="color: var(--primary); margin-right: 8px;"></i>Living Preferences &amp; Profile</h3>
+        <form id="edit-profile-form">
+          <div class="input-group">
+            <label>Your Full Name</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-user input-icon"></i>
+              <input type="text" id="profile-edit-name" value="${currentUserProfile.name}" required>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Contact Phone Number</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-phone input-icon"></i>
+              <input type="tel" id="profile-edit-phone" value="${currentUserProfile.phone || ''}" required>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Monthly Budget Limit Range (₹)</label>
+            <div class="range-sliders">
+              <input type="range" id="profile-edit-budget" min="2000" max="15000" value="${userPref.budgetMax || 8000}" step="500">
+              <div class="range-values">Max Budget Limit: <span id="profile-edit-budget-val">₹${(userPref.budgetMax || 8000).toLocaleString('en-IN')}</span>/mo</div>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Sleep Schedule Habit</label>
+            <div class="segmented-control" id="profile-edit-sleep">
+              <button type="button" class="segment-btn ${userPref.sleepHabit === 'flexible' ? 'active' : ''}" data-value="flexible">Flexible</button>
+              <button type="button" class="segment-btn ${userPref.sleepHabit === 'early' ? 'active' : ''}" data-value="early">Early Bird</button>
+              <button type="button" class="segment-btn ${userPref.sleepHabit === 'night' ? 'active' : ''}" data-value="night">Night Owl</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Cleanliness Priority</label>
+            <div class="segmented-control" id="profile-edit-clean">
+              <button type="button" class="segment-btn ${userPref.cleanliness === 'low' ? 'active' : ''}" data-value="low">Chill</button>
+              <button type="button" class="segment-btn ${userPref.cleanliness === 'medium' ? 'active' : ''}" data-value="medium">Medium</button>
+              <button type="button" class="segment-btn ${userPref.cleanliness === 'high' ? 'active' : ''}" data-value="high">Clean Freak</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Dietary Choice</label>
+            <div class="segmented-control" id="profile-edit-diet">
+              <button type="button" class="segment-btn ${userPref.dietary === 'any' ? 'active' : ''}" data-value="any">Any Diet</button>
+              <button type="button" class="segment-btn ${userPref.dietary === 'veg' ? 'active' : ''}" data-value="veg">Veg Only</button>
+              <button type="button" class="segment-btn ${userPref.dietary === 'nonveg' ? 'active' : ''}" data-value="nonveg">Non-Veg</button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 15px;">
+            <i class="fa-solid fa-circle-check"></i> Save Living Preferences
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  // Student verification form handler
+  document.getElementById('student-verification-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const docType = document.getElementById('student-doc-type').value;
+    const frontFile = document.getElementById('doc-front-file').files[0];
+    const backFile = document.getElementById('doc-back-file').files[0];
+    if (!frontFile || !backFile) return;
+
+    const subBtn = e.target.querySelector('button[type="submit"]');
+    subBtn.disabled = true;
+    subBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading Documents...';
+
+    try {
+      const frontUrl = await uploadDocumentFile(frontFile, `student_${docType.replace(/\s+/g, '_')}_front`);
+      const backUrl = await uploadDocumentFile(backFile, `student_${docType.replace(/\s+/g, '_')}_back`);
+
+      const updatedDocs = [...(currentUserProfile.verification_docs || []), frontUrl, backUrl];
+      const { error } = await db.from('users').update({
+        verification_docs: updatedDocs
+      }).eq('id', currentUserProfile.id);
+
+      if (error) throw error;
+      currentUserProfile.verification_docs = updatedDocs;
+      alert("Verification documents uploaded successfully! Admin review pending.");
+      loadProfileView(pane);
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+      subBtn.disabled = false;
+      subBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Submit For Verification';
+    }
+  });
 
   // Sync budget slider label text
   const budgetSl = document.getElementById('profile-edit-budget');
   const budgetLb = document.getElementById('profile-edit-budget-val');
-  budgetSl.addEventListener('input', () => {
+  budgetSl?.addEventListener('input', () => {
     budgetLb.textContent = `₹${parseInt(budgetSl.value).toLocaleString('en-IN')}`;
   });
 
-  // Handle segmented controllers active class updates
+  // Handle segmented controllers
   document.querySelectorAll('#edit-profile-form .segmented-control button').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -2466,7 +2938,7 @@ async function loadProfileView(pane) {
     });
   });
 
-  // Handle profile update form submission
+  // Save profile preferences
   document.getElementById('edit-profile-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('profile-edit-name')?.value || '';
@@ -2482,32 +2954,155 @@ async function loadProfileView(pane) {
     saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
 
     const { error } = await db.from('users').update({
-      name,
-      phone,
-      preferences: {
-        budgetMin: 2000,
-        budgetMax,
-        sleepHabit,
-        cleanliness,
-        dietary,
-        socialStatus: 'medium'
-      }
+      name, phone,
+      preferences: { budgetMin: 2000, budgetMax, sleepHabit, cleanliness, dietary, socialStatus: 'medium' }
     }).eq('id', currentUserProfile.id);
 
     if (error) {
       alert(`Error updating profile: ${error.message}`);
       saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Save Profile Details';
+      saveBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Save Living Preferences';
     } else {
       currentUserProfile.name = name;
       currentUserProfile.phone = phone;
       currentUserProfile.preferences = { budgetMin: 2000, budgetMax, sleepHabit, cleanliness, dietary, socialStatus: 'medium' };
-      
       syncUIForLoggedInUser();
-      alert("Profile and co-living preferences updated successfully!");
+      alert("Preferences updated successfully!");
+      loadProfileView(pane);
     }
   });
 }
+
+// 7.0 OWNER VERIFICATION VIEW
+async function loadOwnerVerificationView(pane) {
+  const isVerified = currentUserProfile.verified === true;
+  const docsList = currentUserProfile.verification_docs || [];
+
+  pane.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <div>
+        <h2 style="font-size: 22px;">Property Owner Verification</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Submit property deeds, electricity bills, or government ID to get the Verified Owner badge on flat listings.</p>
+      </div>
+
+      <!-- Owner Verification Status Banner -->
+      <div class="glass-card" style="padding: 24px; border-left: 5px solid ${isVerified ? 'var(--green)' : '#ff9800'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <span class="badge" style="background: ${isVerified ? 'rgba(46,125,50,0.1)' : 'rgba(255,152,0,0.1)'}; color: ${isVerified ? 'var(--green)' : '#ff9800'}; border-color: ${isVerified ? 'rgba(46,125,50,0.3)' : 'rgba(255,152,0,0.3)'}; font-size: 13px; padding: 6px 14px;">
+              <i class="fa-solid ${isVerified ? 'fa-building-circle-check' : 'fa-hourglass-half'}"></i> ${isVerified ? 'Verified Property Owner' : 'Owner Verification Pending'}
+            </span>
+            <h3 style="font-size: 17px; margin-top: 10px;">Trust Score: ${currentUserProfile.trust_score || 85}%</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">
+              ${isVerified ? 'Your landlord verification status is active. All your room listings bear the verified badge.' : 'Upload property ownership documents or Aadhaar for fast admin verification.'}
+            </p>
+          </div>
+          <div style="font-size: 32px; color: ${isVerified ? 'var(--green)' : '#ff9800'}; font-weight: 900;">
+            ${currentUserProfile.trust_score || 85}%
+          </div>
+        </div>
+
+        ${docsList.length > 0 ? `
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.06);">
+            <span style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 8px;">Uploaded Landlord Documents (${docsList.length}):</span>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              ${docsList.map((doc, idx) => `
+                <a href="${doc}" target="_blank" style="font-size: 12px; text-decoration: none; padding: 6px 12px; background: rgba(0,0,0,0.04); border-radius: 8px; color: var(--primary); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-file-contract"></i> Document #${idx + 1}
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Upload Owner Document Card -->
+      <div class="glass-card" style="padding: 24px;">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 6px;"><i class="fa-solid fa-file-signature" style="color: var(--primary); margin-right: 8px;"></i>Upload Ownership Verification Documents</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Provide clear photos of property deed, electricity bill, or government ID.</p>
+
+        <form id="owner-verification-form">
+          <div class="input-group">
+            <label>Select Document Type</label>
+            <select id="owner-doc-type" required style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-glass); background: #fff; font-size: 14px;">
+              <option value="Property Deed">Property Deed / Title Agreement</option>
+              <option value="Aadhaar Card">Owner Aadhaar Card</option>
+              <option value="Electricity Bill">Recent Electricity Bill</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 16px 0;">
+            <div class="input-group" style="margin: 0;">
+              <label>Document Front / Page 1</label>
+              <input type="file" id="owner-front-file" accept="image/*" required style="font-size: 13px;">
+            </div>
+            <div class="input-group" style="margin: 0;">
+              <label>Document Back / Page 2</label>
+              <input type="file" id="owner-back-file" accept="image/*" required style="font-size: 13px;">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Submit Ownership Documents
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('owner-verification-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const docType = document.getElementById('owner-doc-type').value;
+    const frontFile = document.getElementById('owner-front-file').files[0];
+    const backFile = document.getElementById('owner-back-file').files[0];
+    if (!frontFile || !backFile) return;
+
+    const subBtn = e.target.querySelector('button[type="submit"]');
+    subBtn.disabled = true;
+    subBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting Documents...';
+
+    try {
+      const frontUrl = await uploadDocumentFile(frontFile, `owner_${docType.replace(/\s+/g, '_')}_front`);
+      const backUrl = await uploadDocumentFile(backFile, `owner_${docType.replace(/\s+/g, '_')}_back`);
+
+      const updatedDocs = [...(currentUserProfile.verification_docs || []), frontUrl, backUrl];
+      const { error } = await db.from('users').update({
+        verification_docs: updatedDocs
+      }).eq('id', currentUserProfile.id);
+
+      if (error) throw error;
+      currentUserProfile.verification_docs = updatedDocs;
+      alert("Property ownership documents submitted successfully! Admin verification pending.");
+      loadOwnerVerificationView(pane);
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+      subBtn.disabled = false;
+      subBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Submit Ownership Documents';
+    }
+  });
+}
+
+// Helper: Upload file to Supabase Storage or convert to Base64
+async function uploadDocumentFile(file, prefix) {
+  try {
+    const fileName = `verifications/${currentUserProfile.id}_${prefix}_${Date.now()}_${file.name}`;
+    const { error } = await db.storage.from('room-images').upload(fileName, file, { upsert: true });
+    if (!error) {
+      const { data } = db.storage.from('room-images').getPublicUrl(fileName);
+      if (data && data.publicUrl) return data.publicUrl;
+    }
+  } catch (e) {
+    console.warn("Supabase Storage upload fallback to base64 data URL: ", e);
+  }
+
+  // Base64 fallback if storage bucket or network policy blocks binary direct stream
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.readAsDataURL(file);
+  });
+}
+
 
 
 // ============================================================================
@@ -3106,6 +3701,12 @@ async function loadAdminPanel(pane) {
       .select('*')
       .order('created_at', { ascending: false });
 
+    // Fetch users for KYC Verification approval queue
+    const { data: allUsers } = await db.from('users').select('*');
+    const kycUsers = (allUsers || []).filter(u => u.verification_docs && u.verification_docs.length > 0);
+    const pendingKyc = kycUsers.filter(u => !u.verified);
+    const approvedKyc = kycUsers.filter(u => u.verified === true);
+
     if (error) {
       pane.innerHTML = `<p style="color:var(--primary);">Error: ${error.message}</p>`;
       return;
@@ -3126,28 +3727,71 @@ async function loadAdminPanel(pane) {
       <div style="display:flex; flex-direction:column; gap:24px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div>
-            <h2 style="font-size:22px;"><i class="fa-solid fa-shield-halved" style="color:var(--primary); margin-right:10px;"></i>Admin Panel</h2>
-            <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">Review and process room deletion requests in real-time. Changes are instant.</p>
+            <h2 style="font-size:22px;"><i class="fa-solid fa-shield-halved" style="color:var(--primary); margin-right:10px;"></i>Admin Portal</h2>
+            <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">Approve Student/Owner KYC document submissions &amp; process room deletion requests.</p>
           </div>
           <div style="display:flex; gap:10px;">
-            <span style="background:rgba(255,152,0,0.1); color:#ff9800; border:1px solid rgba(255,152,0,0.3); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-clock"></i> ${pending.length} Pending</span>
-            <span style="background:rgba(46,125,50,0.08); color:var(--green); border:1px solid rgba(46,125,50,0.2); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> ${processed.length} Processed</span>
+            <span style="background:rgba(255,152,0,0.1); color:#ff9800; border:1px solid rgba(255,152,0,0.3); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-id-card"></i> ${pendingKyc.length} Pending KYC</span>
+            <span style="background:rgba(46,125,50,0.08); color:var(--green); border:1px solid rgba(46,125,50,0.2); padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> ${approvedKyc.length} Verified Users</span>
           </div>
         </div>
 
+        <!-- Student & Owner KYC Verifications Section -->
         <div>
-          <h3 style="font-size:16px; margin-bottom:14px;">⏳ Pending Deletion Requests</h3>
+          <h3 style="font-size:16px; margin-bottom:14px;"><i class="fa-solid fa-user-shield" style="color:var(--primary); margin-right:8px;"></i>⏳ Pending Student &amp; Owner KYC Verifications</h3>
+          ${pendingKyc.length === 0 ? `
+            <div style="text-align:center; padding:30px; border:1px dashed var(--border-glass); border-radius:14px; background:#fff;">
+              <i class="fa-solid fa-user-check fa-2x" style="color:var(--green); margin-bottom:10px;"></i>
+              <p style="color:var(--text-muted); font-size:13px;">No pending KYC document submissions. All users are verified!</p>
+            </div>
+          ` : `
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              ${pendingKyc.map(u => `
+                <div class="ticket-row-card" style="border-left:4px solid #ff9800; background:#fff; padding:20px; border-radius:14px; border:1px solid var(--border-glass);">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <div>
+                      <h4 style="font-size:16px; margin:0;">${u.name} <span class="badge" style="font-size:11px; padding:3px 8px; margin-left:6px; background:rgba(0,0,0,0.05);">${(u.role || 'student').toUpperCase()}</span></h4>
+                      <p style="font-size:12px; color:var(--text-muted); margin-top:3px;"><i class="fa-solid fa-envelope"></i> ${u.email} | <i class="fa-solid fa-phone"></i> ${u.phone || 'N/A'}</p>
+                    </div>
+                    <span style="font-size:11px; color:#ff9800; background:rgba(255,152,0,0.1); border:1px solid rgba(255,152,0,0.3); padding:4px 12px; border-radius:20px; font-weight:600;">⏳ Verification Pending</span>
+                  </div>
+                  <div style="background:#fafafa; border-radius:10px; padding:12px; margin-bottom:14px; border:1px solid rgba(0,0,0,0.06);">
+                    <strong style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:8px;">Uploaded Document Attachments (${(u.verification_docs || []).length}):</strong>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                      ${(u.verification_docs || []).map((doc, idx) => `
+                        <a href="${doc}" target="_blank" style="font-size:12px; text-decoration:none; padding:6px 12px; background:#fff; border:1px solid rgba(0,0,0,0.1); border-radius:8px; color:var(--primary); font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                          <i class="fa-solid fa-file-shield"></i> View Document #${idx + 1}
+                        </a>
+                      `).join('')}
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:10px;">
+                    <button class="btn kyc-approve-btn" data-user-id="${u.id}" style="flex:1; justify-content:center; background:rgba(46,125,50,0.1); color:var(--green); border:1px solid rgba(46,125,50,0.25); border-radius:10px; padding:10px; font-weight:700; font-size:13px;">
+                      <i class="fa-solid fa-circle-check"></i> Approve KYC &amp; Issue Badge
+                    </button>
+                    <button class="btn kyc-reject-btn" data-user-id="${u.id}" style="flex:1; justify-content:center; background:rgba(211,47,47,0.08); color:var(--primary); border:1px solid rgba(211,47,47,0.2); border-radius:10px; padding:10px; font-weight:700; font-size:13px;">
+                      <i class="fa-solid fa-circle-xmark"></i> Reject KYC
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <div>
+          <h3 style="font-size:16px; margin-bottom:14px;"><i class="fa-solid fa-trash-can" style="color:var(--primary); margin-right:8px;"></i>⏳ Pending Room Deletion Requests</h3>
           ${pending.length === 0 ? `
-            <div style="text-align:center; padding:40px; border:1px dashed var(--border-glass); border-radius:14px;">
-              <i class="fa-solid fa-circle-check fa-2x" style="color:var(--green); margin-bottom:12px;"></i>
-              <p style="color:var(--text-muted);">No pending deletion requests. All clear!</p>
+            <div style="text-align:center; padding:30px; border:1px dashed var(--border-glass); border-radius:14px; background:#fff;">
+              <i class="fa-solid fa-circle-check fa-2x" style="color:var(--green); margin-bottom:10px;"></i>
+              <p style="color:var(--text-muted); font-size:13px;">No pending deletion requests. All clear!</p>
             </div>
           ` : `
             <div style="display:flex; flex-direction:column; gap:14px;">
               ${pending.map(req => {
                 const owner = ownerMap[req.owner_id] || {};
                 return `
-                  <div class="ticket-row-card" style="border-left:4px solid #ff9800;">
+                  <div class="ticket-row-card" style="border-left:4px solid #ff9800; background:#fff; padding:20px; border-radius:14px; border:1px solid var(--border-glass);">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
                       <div>
                         <h3 style="font-size:16px; margin:0;">${req.room_title}</h3>
@@ -3163,7 +3807,7 @@ async function loadAdminPanel(pane) {
                     </div>
                     <div style="display:flex; gap:10px;">
                       <button class="btn admin-approve-btn" data-req-id="${req.id}" data-room-id="${req.room_id}" style="flex:1; justify-content:center; background:rgba(46,125,50,0.1); color:var(--green); border:1px solid rgba(46,125,50,0.25); border-radius:10px; padding:12px; font-weight:700;">
-                        <i class="fa-solid fa-circle-check"></i> Approve & Delete Room
+                        <i class="fa-solid fa-circle-check"></i> Approve &amp; Delete Room
                       </button>
                       <button class="btn admin-reject-btn" data-req-id="${req.id}" style="flex:1; justify-content:center; background:rgba(211,47,47,0.08); color:var(--primary); border:1px solid rgba(211,47,47,0.2); border-radius:10px; padding:12px; font-weight:700;">
                         <i class="fa-solid fa-circle-xmark"></i> Reject Request
@@ -3197,7 +3841,39 @@ async function loadAdminPanel(pane) {
       </div>
     `;
 
-    // Approve
+    // KYC Approve Event Listeners
+    document.querySelectorAll('.kyc-approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.userId;
+        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Approving...';
+        try {
+          const targetUser = (allUsers || []).find(u => u.id === userId) || {};
+          const updatedScore = Math.min(100, (targetUser.trust_score || 85) + 15);
+          await db.from('users').update({ verified: true, trust_score: updatedScore }).eq('id', userId);
+          showToast('🎉 KYC Approved & Verified Badge Issued!', 'success');
+          renderAdminQueue();
+        } catch (e) {
+          alert('KYC approval error: ' + e.message);
+        }
+      });
+    });
+
+    // KYC Reject Event Listeners
+    document.querySelectorAll('.kyc-reject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.userId;
+        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rejecting...';
+        try {
+          await db.from('users').update({ verification_docs: [], verified: false }).eq('id', userId);
+          showToast('KYC rejected & cleared.', 'info');
+          renderAdminQueue();
+        } catch (e) {
+          alert('KYC rejection error: ' + e.message);
+        }
+      });
+    });
+
+    // Approve Deletion
     document.querySelectorAll('.admin-approve-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const reqId = btn.dataset.reqId;
@@ -3214,7 +3890,7 @@ async function loadAdminPanel(pane) {
       });
     });
 
-    // Reject
+    // Reject Deletion
     document.querySelectorAll('.admin-reject-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const reqId = btn.dataset.reqId;

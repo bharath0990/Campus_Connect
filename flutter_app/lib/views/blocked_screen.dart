@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/services.dart';
 import 'login_selection_screen.dart';
@@ -23,7 +23,7 @@ class BlockedScreen extends StatelessWidget {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.redAccent.withOpacity(0.12),
+                color: Colors.redAccent.withValues(alpha: 0.12),
               ),
             ),
           ),
@@ -35,7 +35,7 @@ class BlockedScreen extends StatelessWidget {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: theme.primaryColor.withOpacity(0.08),
+                color: theme.primaryColor.withValues(alpha: 0.08),
               ),
             ),
           ),
@@ -47,15 +47,15 @@ class BlockedScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(28.0),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.redAccent.withOpacity(0.2),
+                      color: Colors.redAccent.withValues(alpha: 0.2),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 20,
                         spreadRadius: 2,
                       )
@@ -69,12 +69,12 @@ class BlockedScreen extends StatelessWidget {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Colors.red.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.redAccent, width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.redAccent.withOpacity(0.15),
+                              color: Colors.redAccent.withValues(alpha: 0.15),
                               blurRadius: 16,
                               spreadRadius: 2,
                             )
@@ -114,9 +114,9 @@ class BlockedScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.02),
+                          color: Colors.black.withValues(alpha: 0.02),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.black12.withOpacity(0.04)),
+                          border: Border.all(color: Colors.black12.withValues(alpha: 0.04)),
                         ),
                         child: Row(
                           children: [

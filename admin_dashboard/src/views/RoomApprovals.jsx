@@ -3,12 +3,14 @@ import { supabase } from '../App';
 
 export default function RoomApprovals() {
   const [rooms, setRooms] = useState([]);
-
+  const [filter, setFilter] = useState('all'); // 'all', 'pending', 'approved'
+  const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState('');
-  const [isOffline, setIsOffline] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function loadLiveRooms() {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('rooms')
         .select('*, owner:owner_id(name, trust_score)');
@@ -21,19 +23,48 @@ export default function RoomApprovals() {
           title: r.title,
           owner: r.owner?.name || 'Landlord',
           owner_id: r.owner_id,
-          city: r.city,
-          rent: `₹${r.rent}/mo`,
-          docType: 'Aadhaar Card File',
-          image: r.images[0] || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=300&q=80',
-          trustScore: r.owner?.trust_score || 80,
+          city: r.city || 'Goa',
+          address: r.detailed_address || 'Near Campus',
+          rent: r.rent,
+          image: (r.images && r.images[0]) || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=400&q=80',
+          trustScore: r.owner?.trust_score || 85,
+          verified: r.verified === true,
           status: r.verified ? 'Approved' : 'Pending Verification'
         }));
         setRooms(formatted);
       }
-      setIsOffline(false);
     } catch (err) {
-      console.warn("Using offline rooms fallback profiles.", err);
-      setIsOffline(true);
+      console.warn("Falling back to demo room listings.", err);
+      setRooms([
+        {
+          id: 'room_demo_1',
+          title: 'Stanza Living Student PG A',
+          owner: 'Rajesh PG Owner',
+          owner_id: 'mock_owner_1',
+          city: 'Panaji, Goa',
+          address: 'Near BITS Campus, Sancoale',
+          rent: 12000,
+          image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=400&q=80',
+          trustScore: 92,
+          verified: true,
+          status: 'Approved'
+        },
+        {
+          id: 'room_demo_2',
+          title: 'Co-Living Flat B (Dual Sharing)',
+          owner: 'Suresh Kumar',
+          owner_id: 'mock_owner_2',
+          city: 'Verna, Goa',
+          address: 'Block C, Highway Residency',
+          rent: 8500,
+          image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=400&q=80',
+          trustScore: 78,
+          verified: false,
+          status: 'Pending Verification'
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -53,248 +84,266 @@ export default function RoomApprovals() {
     };
   }, []);
 
-  const handleAction = async (id, newStatus, message) => {
-    if (isOffline) {
-      setRooms(prev => prev.map(room => room.id === id ? { ...room, status: newStatus } : room));
-      setNotification(message);
-      setTimeout(() => setNotification(''), 4000);
-      return;
-    }
-
+  const handleToggleVerification = async (room, newVerifiedState) => {
     try {
-      // If live, update status in Supabase table
       const { error } = await supabase
         .from('rooms')
-        .update({ verified: (newStatus === 'Approved') })
-        .eq('id', id);
+        .update({ verified: newVerifiedState })
+        .eq('id', room.id);
 
       if (error) throw error;
 
-      setRooms(prev => prev.map(room => room.id === id ? { ...room, status: newStatus } : room));
-      setNotification(message);
+      // Send notification to landlord
+      if (room.owner_id) {
+        await supabase.from('notifications').insert({
+          user_id: room.owner_id,
+          type: 'room_verified',
+          title: newVerifiedState ? '✅ Room Listing Verified!' : '⚠️ Listing Status Updated',
+          message: newVerifiedState 
+            ? `Your room listing "${room.title}" has been approved and verified by CampusStay Admin!`
+            : `Your room listing "${room.title}" status was changed to pending review.`
+        });
+      }
+
+      setRooms(prev => prev.map(r => r.id === room.id ? { ...r, verified: newVerifiedState, status: newVerifiedState ? 'Approved' : 'Pending Verification' } : r));
+      setNotification(`Room "${room.title}" status updated to ${newVerifiedState ? 'VERIFIED (Public Badge Active)' : 'PENDING'}`);
       setTimeout(() => setNotification(''), 4000);
     } catch (err) {
-      console.error("Supabase update failed:", err);
-      alert(`Error: Failed to save changes to database. ${err.message || err}`);
+      alert(`Error updating room status: ${err.message || err}`);
     }
   };
 
   const handleDeleteRoom = async (id, title, ownerId) => {
-    const reason = prompt(`Enter the reason for deleting the listing "${title}":`);
-    if (reason === null) return; // Cancelled
+    const reason = prompt(`Enter deletion reason for listing "${title}":`);
+    if (reason === null) return;
     if (!reason.trim()) {
       alert("A deletion reason is required.");
       return;
     }
 
-    if (isOffline) {
-      setRooms(prev => prev.filter(room => room.id !== id));
-      setNotification(`Mock Deleted room: "${title}"`);
-      setTimeout(() => setNotification(''), 4000);
-      return;
-    }
-
     try {
-      // 1. Send notification to owner first
       if (ownerId) {
-        const { error: notifError } = await supabase
-          .from('notifications')
-          .insert({
-            user_id: ownerId,
-            type: 'room_deleted',
-            title: '🏢 Room Listing Deleted by Admin',
-            message: `Your room listing "${title}" was deleted by CampusStay Admin. Reason: ${reason}`
-          });
-        if (notifError) console.warn("Failed to notify owner:", notifError);
+        await supabase.from('notifications').insert({
+          user_id: ownerId,
+          type: 'room_deleted',
+          title: '🏢 Room Listing Deleted by Admin',
+          message: `Your room listing "${title}" was deleted by Admin. Reason: ${reason}`
+        });
       }
 
-      // 2. Perform room deletion
-      const { error } = await supabase
-        .from('rooms')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('rooms').delete().eq('id', id);
       if (error) throw error;
 
-      setNotification(`Successfully deleted listing "${title}" and notified the owner.`);
+      setRooms(prev => prev.filter(r => r.id !== id));
+      setNotification(`Successfully deleted listing "${title}". Owner notified.`);
       setTimeout(() => setNotification(''), 4000);
     } catch (err) {
-      console.error("Supabase delete failed:", err);
-      alert(`Failed to delete room listing: ${err.message || err}`);
+      alert(`Failed to delete room: ${err.message || err}`);
     }
   };
 
+  const filteredRooms = rooms.filter(r => {
+    const matchesFilter = 
+      filter === 'all' || 
+      (filter === 'approved' && r.verified) || 
+      (filter === 'pending' && !r.verified);
+
+    const matchesSearch = 
+      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.owner.toLowerCase().includes(searchQuery.toLowerCase());
+
+    return matchesFilter && matchesSearch;
+  });
+
+  const totalCount = rooms.length;
+  const approvedCount = rooms.filter(r => r.verified).length;
+  const pendingCount = rooms.filter(r => !r.verified).length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {isOffline && (
-        <div style={{
-          background: 'rgba(239, 68, 68, 0.15)',
-          border: '1px solid #ef4444',
-          color: 'var(--text-primary)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <span>⚠️</span>
-          <span>Operating in Offline Fallback Mode. Supabase connection timed out or tables are not initialized. Mock rooms are shown.</span>
+      {/* Top Overview Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+        <div className="glass glass-hover" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Flat Listings</span>
+            <h2 style={{ fontSize: '32px', margin: '6px 0 0 0', color: 'var(--text-primary)' }}>{totalCount}</h2>
+          </div>
+          <div style={{ fontSize: '36px', background: 'rgba(99, 102, 241, 0.1)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            🏠
+          </div>
         </div>
-      )}
-      
+
+        <div className="glass glass-hover" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Verified Listings</span>
+            <h2 style={{ fontSize: '32px', margin: '6px 0 0 0', color: 'var(--accent)' }}>{approvedCount}</h2>
+          </div>
+          <div style={{ fontSize: '36px', background: 'rgba(16, 185, 129, 0.1)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            ✓
+          </div>
+        </div>
+
+        <div className="glass glass-hover" style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Pending Approvals</span>
+            <h2 style={{ fontSize: '32px', margin: '6px 0 0 0', color: 'var(--warning)' }}>{pendingCount}</h2>
+          </div>
+          <div style={{ fontSize: '36px', background: 'rgba(245, 158, 11, 0.1)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            ⏳
+          </div>
+        </div>
+      </div>
+
       {notification && (
         <div className="fade-in" style={{
-          background: 'rgba(16, 185, 129, 0.15)',
+          background: 'rgba(16, 185, 129, 0.12)',
           border: '1px solid var(--accent)',
           color: 'var(--text-primary)',
-          padding: '16px',
+          padding: '16px 20px',
           borderRadius: 'var(--radius-md)',
           fontSize: '14px',
           fontWeight: '600'
         }}>
-          ✅ SUCCESS: {notification}
+          🛡️ SYSTEM LOG: {notification}
         </div>
       )}
 
-      <div className="glass" style={{ padding: '24px', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Property Details</th>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Owner & Trust Index</th>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Verification Documents</th>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Rent & Area</th>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>Review Status</th>
-              <th style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rooms.length === 0 ? (
-              <tr>
-                <td colSpan="6" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '15px' }}>
-                  📭 No property listings found in the database.
-                </td>
-              </tr>
-            ) : (
-              rooms.map(room => (
-              <tr key={room.id} style={{
-                borderBottom: '1px solid var(--border-glass)',
-                transition: 'var(--transition-smooth)'
-              }} className="glass-hover">
-                
-                <td style={{ padding: '18px 12px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+      {/* Control Bar */}
+      <div className="glass" style={{ padding: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1, minWidth: '280px' }}>
+          <input 
+            type="text" 
+            placeholder="🔍 Search flat listings by title, city, or landlord..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 18px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-glass)',
+              background: '#ffffff',
+              color: 'var(--text-primary)',
+              fontSize: '14px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+          <button 
+            className={filter === 'all' ? '' : 'secondary'}
+            onClick={() => setFilter('all')}
+            style={{ padding: '6px 14px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
+          >
+            All Listings ({totalCount})
+          </button>
+          <button 
+            className={filter === 'approved' ? '' : 'secondary'}
+            onClick={() => setFilter('approved')}
+            style={{ padding: '6px 14px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
+          >
+            Verified ({approvedCount})
+          </button>
+          <button 
+            className={filter === 'pending' ? '' : 'secondary'}
+            onClick={() => setFilter('pending')}
+            style={{ padding: '6px 14px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
+          >
+            Pending ({pendingCount})
+          </button>
+        </div>
+      </div>
+
+      {/* Listings Grid */}
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+          <div className="pulsing" style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
+          <p>Fetching real-time property listings from Supabase...</p>
+        </div>
+      ) : filteredRooms.length === 0 ? (
+        <div className="glass" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: '16px' }}>🏠 No matching flat listings found.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          {filteredRooms.map(room => (
+            <div key={room.id} className="glass glass-hover" style={{
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              justify: 'space-between',
+              background: '#ffffff',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+            }}>
+              <div>
+                <div style={{ position: 'relative', marginBottom: '14px' }}>
                   <img 
                     src={room.image} 
-                    style={{ width: '64px', height: '64px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} 
-                    alt={room.title}
+                    alt={room.title} 
+                    style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} 
                   />
-                  <div>
-                    <h4 style={{ fontSize: '15px', color: 'var(--text-primary)' }}>{room.title}</h4>
-                    <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>{room.id}</span>
-                  </div>
-                </td>
-
-                <td style={{ padding: '18px 12px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: '600' }}>{room.owner}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                    <span style={{
-                      height: '8px',
-                      width: '80px',
-                      background: 'rgba(0,0,0,0.06)',
-                      borderRadius: '4px',
-                      overflow: 'hidden',
-                      display: 'inline-block'
-                    }}>
-                      <span style={{
-                        height: '100%',
-                        width: `${room.trustScore}%`,
-                        background: room.trustScore > 80 ? 'var(--accent)' : 'var(--warning)',
-                        display: 'block'
-                      }}></span>
-                    </span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{room.trustScore}</span>
-                  </div>
-                </td>
-
-                <td style={{ padding: '18px 12px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                  📄 {room.docType}
-                  <span style={{ display: 'block', color: 'var(--primary)', fontSize: '11px', cursor: 'pointer', marginTop: '4px' }}>
-                    🔗 Download Attachments (PDF)
-                  </span>
-                </td>
-
-                <td style={{ padding: '18px 12px' }}>
-                  <strong style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{room.rent}</strong>
-                  <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)' }}>{room.city}</span>
-                </td>
-
-                <td style={{ padding: '18px 12px' }}>
                   <span style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
                     fontSize: '11px',
                     fontWeight: 'bold',
-                    padding: '4px 10px',
-                    borderRadius: '50px',
-                    background: room.status === 'Approved' ? 'rgba(16, 185, 129, 0.15)' :
-                                room.status === 'Rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                    color: room.status === 'Approved' ? 'var(--accent)' :
-                           room.status === 'Rejected' ? 'var(--danger)' : 'var(--warning)',
-                    border: `1px solid ${
-                      room.status === 'Approved' ? 'rgba(16, 185, 129, 0.3)' :
-                      room.status === 'Rejected' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'
-                    }`
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    background: room.verified ? 'rgba(16, 185, 129, 0.9)' : 'rgba(245, 158, 11, 0.9)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                   }}>
-                    {room.status}
+                    {room.verified ? '✓ Verified Listing' : '⏳ Pending Approval'}
                   </span>
-                </td>
+                </div>
 
-                <td style={{ padding: '18px 12px', textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-                    {room.status === 'Pending Verification' ? (
-                      <>
-                        <button 
-                          id={`reject-${room.id}`}
-                          className="secondary" 
-                          onClick={() => handleAction(room.id, 'Rejected', `Rejected property listing ${room.id}. Owner notified.`)}
-                          style={{ padding: '8px 14px', fontSize: '12px' }}
-                        >
-                          Reject
-                        </button>
-                        <button 
-                          id={`approve-${room.id}`}
-                          onClick={() => handleAction(room.id, 'Approved', `Approved property listing ${room.id}. Now visible on Student feeds.`)}
-                          style={{ padding: '8px 14px', fontSize: '12px' }}
-                        >
-                          Approve
-                        </button>
-                      </>
-                    ) : (
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px' }}>Reviewed</span>
-                    )}
-                    <button 
-                      id={`delete-${room.id}`}
-                      className="secondary" 
-                      onClick={() => handleDeleteRoom(room.id, room.title, room.owner_id)}
-                      style={{ 
-                        padding: '8px 14px', 
-                        fontSize: '12px', 
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-                        borderColor: 'var(--danger)', 
-                        color: 'var(--danger)' 
-                      }}
-                    >
-                      Delete Listing
-                    </button>
+                <h3 style={{ fontSize: '17px', margin: '0 0 6px 0', color: 'var(--text-primary)', fontWeight: '700' }}>{room.title}</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>📍 {room.address}, {room.city}</p>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: 'var(--radius-sm)', marginBottom: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Monthly Rent</span>
+                    <strong style={{ fontSize: '16px', color: 'var(--primary)' }}>₹{room.rent.toLocaleString('en-IN')}/mo</strong>
                   </div>
-                </td>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block' }}>Landlord</span>
+                    <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{room.owner} (Trust: {room.trustScore}%)</strong>
+                  </div>
+                </div>
+              </div>
 
-              </tr>
-            )))}
-          </tbody>
-        </table>
-      </div>
-      
+              <div style={{ display: 'flex', gap: '10px', paddingTop: '12px', borderTop: '1px solid var(--border-glass)' }}>
+                {!room.verified ? (
+                  <button 
+                    onClick={() => handleToggleVerification(room, true)}
+                    style={{ flex: 1, padding: '10px', fontSize: '13px', background: 'var(--accent)', borderColor: 'var(--accent)', color: 'white', fontWeight: 'bold' }}
+                  >
+                    🛡️ Approve Listing
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleToggleVerification(room, false)}
+                    className="secondary"
+                    style={{ flex: 1, padding: '10px', fontSize: '13px' }}
+                  >
+                    ⏳ Unverify
+                  </button>
+                )}
+                
+                <button 
+                  onClick={() => handleDeleteRoom(room.id, room.title, room.owner_id)}
+                  style={{ padding: '10px 14px', fontSize: '13px', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                >
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -157,7 +157,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
+              backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
               child: Text(widget.peerName[0], style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 12),
@@ -186,7 +186,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.forum_outlined, size: 48, color: Colors.grey.withOpacity(0.5)),
+                        Icon(Icons.forum_outlined, size: 48, color: Colors.grey.withValues(alpha: 0.5)),
                         const SizedBox(height: 12),
                         const Text('No messages yet. Send a greeting to start room negotiations!', style: TextStyle(color: Colors.grey, fontSize: 13)),
                       ],

@@ -178,7 +178,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
         if (mounted) {
           setState(() {
             _activeRoommates = loadedRoommates;
-            _activeRoommateCount = loadedRoommates.length > 0 ? loadedRoommates.length : 1;
+            _activeRoommateCount = loadedRoommates.isNotEmpty ? loadedRoommates.length : 1;
           });
         }
       } catch (e) {
@@ -330,6 +330,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
                     value: _selectedPayer,
                     decoration: const InputDecoration(labelText: 'Paid By'),
                     items: _activeRoommates.map((rm) {
@@ -441,11 +442,14 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
     }
 
     if (_currentBookingId == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot pay bill: No active booking found for this room.')),
       );
       return;
     }
+
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -466,6 +470,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
             } catch (e) {
               debugPrint("Failed to update payment receipt: $e");
             }
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Payment Successful! Transaction ID: $txId')),
             );
@@ -547,9 +552,9 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Text('Rent: ₹${_roomRent}/mo', style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor, fontSize: 13)),
+                          Text('Rent: ₹$_roomRent/mo', style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor, fontSize: 13)),
                           const SizedBox(width: 12),
-                          Text('Deposit: ₹${_roomDeposit}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text('Deposit: ₹$_roomDeposit', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                         ],
                       ),
                     ],
@@ -632,7 +637,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                   IconButton(
                     icon: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: primaryColor.withValues(alpha: 0.1), shape: BoxShape.circle),
                       child: Icon(Icons.chat_bubble_rounded, color: primaryColor, size: 18),
                     ),
                     onPressed: () async {
@@ -700,7 +705,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
             _buildRoomAndOwnerHeader(),
             Container(
             padding: const EdgeInsets.all(20),
-            color: Colors.black.withOpacity(0.01),
+            color: Colors.black.withValues(alpha: 0.01),
             child: Column(
               children: [
                 Row(
@@ -751,11 +756,13 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                               ),
                             );
                             if (signed == true) {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Lease Tenancy Contract signed successfully!')),
                               );
                             }
                           } catch (e) {
+                            if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Failed to check lease status: $e')),
                             );
@@ -814,6 +821,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                               ),
                             );
                           } catch (e) {
+                            if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Failed to open roommates chat: $e')),
                             );
@@ -858,7 +866,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
           if (_roomRent > 0)
             Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.blue.shade50.withOpacity(0.3),
+              color: Colors.blue.shade50.withValues(alpha: 0.3),
               shape: RoundedRectangleBorder(
                 side: BorderSide(color: Colors.blue.shade100, width: 1.5),
                 borderRadius: BorderRadius.circular(16),
@@ -878,7 +886,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.blueAccent.withOpacity(0.15),
+                            color: Colors.blueAccent.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -925,7 +933,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Colors.red.shade50.withOpacity(0.3),
+                color: Colors.red.shade50.withValues(alpha: 0.3),
                 shape: RoundedRectangleBorder(
                   side: BorderSide(color: Colors.red.shade100, width: 1.5),
                   borderRadius: BorderRadius.circular(16),
@@ -945,7 +953,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.redAccent.withOpacity(0.15),
+                              color: Colors.redAccent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -987,7 +995,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                                 icon: const Icon(Icons.check_circle, color: Colors.green),
                                 label: const Text('Paid', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade50.withOpacity(0.5),
+                                  backgroundColor: Colors.green.shade50.withValues(alpha: 0.5),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
                               )
@@ -1028,7 +1036,7 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: exp['paid_by_name'] == 'You' ? primaryColor.withOpacity(0.1) : Colors.grey.shade200,
+                          backgroundColor: exp['paid_by_name'] == 'You' ? primaryColor.withValues(alpha: 0.1) : Colors.grey.shade200,
                           child: Icon(Icons.receipt_long, color: exp['paid_by_name'] == 'You' ? primaryColor : Colors.grey),
                         ),
                         title: Text(exp['description'], style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1059,8 +1067,8 @@ class _RoomExpensesScreenState extends State<RoomExpensesScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: indicatorColor.withOpacity(0.06),
-        border: Border.all(color: indicatorColor.withOpacity(0.2), width: 1.5),
+        color: indicatorColor.withValues(alpha: 0.06),
+        border: Border.all(color: indicatorColor.withValues(alpha: 0.2), width: 1.5),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(

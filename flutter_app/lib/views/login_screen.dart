@@ -1,4 +1,4 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   blurRadius: size * 0.7,
                   spreadRadius: size * 0.1,
                 )
@@ -354,11 +354,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       prefixIcon: Icon(icon, color: Colors.black54),
       labelStyle: TextStyle(color: Colors.black87, fontSize: 14),
       filled: true,
-      fillColor: Colors.black.withOpacity(0.02),
+      fillColor: Colors.black.withValues(alpha: 0.02),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.black12.withOpacity(0.08), width: 1.5),
+        borderSide: BorderSide(color: Colors.black12.withValues(alpha: 0.08), width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -381,9 +381,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return Container(
       height: 50,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.03),
+        color: Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black12.withOpacity(0.05)),
+        border: Border.all(color: Colors.black12.withValues(alpha: 0.05)),
       ),
       child: Stack(
         children: [
@@ -400,7 +400,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
+                      color: primaryColor.withValues(alpha: 0.3),
                       blurRadius: 10,
                       spreadRadius: 1,
                     )
@@ -468,10 +468,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.4),
+            color: Colors.white.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               width: 1.5,
             ),
           ),
@@ -584,8 +584,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.12),
-                            border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                            color: Colors.red.withValues(alpha: 0.12),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             children: [
@@ -768,7 +768,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                         elevation: 2,
-                                        shadowColor: primaryColor.withOpacity(0.3),
+                                        shadowColor: primaryColor.withValues(alpha: 0.3),
                                       ),
                                       child: _loading 
                                           ? const CircularProgressIndicator(color: Colors.white) 

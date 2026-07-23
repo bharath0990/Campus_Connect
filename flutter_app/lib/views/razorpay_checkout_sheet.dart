@@ -35,8 +35,10 @@ class RazorpayCheckoutSheet extends StatefulWidget {
 
 class _RazorpayCheckoutSheetState extends State<RazorpayCheckoutSheet> {
   CheckoutState _currentState = CheckoutState.methods;
+  // ignore: unused_field
   String _selectedMethod = 'UPI';
   String _selectedUpiApp = 'Google Pay';
+  // ignore: unused_field
   String _selectedBank = 'HDFC Bank';
   
   // Card Inputs
@@ -530,7 +532,7 @@ class _RazorpayCheckoutSheetState extends State<RazorpayCheckoutSheet> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF152E52),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                   ),
                   padding: const EdgeInsets.all(8),
                   child: Row(

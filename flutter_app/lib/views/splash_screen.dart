@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/services.dart';
 import 'blocked_screen.dart';
-import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'onboarding_screen.dart';
 import 'student_home_screen.dart';
@@ -86,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Theme.of(context).primaryColor.withOpacity(0.15),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.15),
               ),
             ),
           ),
@@ -104,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   'CampusStay',
                   style: TextStyle(
                     fontSize: 36,
@@ -114,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Find Your Perfect Student Home',
                   style: TextStyle(
                     fontSize: 14,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/services.dart';
@@ -83,7 +83,7 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
                   Icon(
                     Icons.forum_outlined,
                     size: 80,
-                    color: Colors.grey.withOpacity(0.4),
+                    color: Colors.grey.withValues(alpha: 0.4),
                   ),
                   const SizedBox(height: 16),
                   const Text(

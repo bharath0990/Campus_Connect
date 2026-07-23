@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/services.dart';
 
@@ -101,9 +101,9 @@ class _TicketSystemScreenState extends State<TicketSystemScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.08),
+                        color: Colors.red.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
                       ),
                       child: const Row(
                         children: [
@@ -121,6 +121,7 @@ class _TicketSystemScreenState extends State<TicketSystemScreen> {
                     const SizedBox(height: 30),
                   ] else ...[
                     DropdownButtonFormField<Map<String, dynamic>>(
+                      // ignore: deprecated_member_use
                       value: _selectedBooking,
                       decoration: const InputDecoration(
                         labelText: 'Select Rented Room',
@@ -189,9 +190,9 @@ class _TicketSystemScreenState extends State<TicketSystemScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.08),
+                      color: Colors.amber.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                     ),
                     child: const Row(
                       children: [

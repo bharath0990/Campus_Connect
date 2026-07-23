@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../services/services.dart';
-import 'login_screen.dart';
 import 'login_selection_screen.dart';
 import 'camera_scan_overlay.dart';
 import 'chats_list_screen.dart';
@@ -30,9 +29,6 @@ class OwnerDashboardScreen extends StatefulWidget {
 
 class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   int _tabIndex = 0;
-  bool _calculatingPrice = false;
-  Map<String, dynamic>? _pricingIntelligence;
-
   late CSUser _currentUser;
   bool _loadingUser = true;
   final _nameController = TextEditingController();
@@ -67,13 +63,18 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     
     final authService = Provider.of<AuthService>(context, listen: false);
     _profileSubscription = authService.streamUserProfile(widget.userId).listen((profile) {
-      if (profile != null && profile.blocked && mounted) {
-        _profileSubscription?.cancel();
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const BlockedScreen()),
-          (route) => false,
-        );
+      if (profile != null && mounted) {
+        setState(() {
+          _currentUser = profile;
+        });
+        if (profile.blocked) {
+          _profileSubscription?.cancel();
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const BlockedScreen()),
+            (route) => false,
+          );
+        }
       }
     });
 
@@ -138,28 +139,6 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     }
   }
 
-  void _runPriceIntelligence() async {
-    setState(() {
-      _calculatingPrice = true;
-    });
-    
-    // Simulate API query latency to Supabase Edge Function: suggest-optimal-price
-    await Future.delayed(const Duration(seconds: 1));
-    
-    setState(() {
-      _calculatingPrice = false;
-      _pricingIntelligence = {
-        'averageMarketPrice': 8500,
-        'suggestedOptimalPrice': 10500,
-        'pricingStatus': 'High (15% above average)',
-        'tips': [
-          'High WiFi speed listings report 35% higher booking success rates.',
-          'AC is high in demand in this zone. Keep rates competitive to reduce vacancies.',
-          'Postgres index confirms free laundry amenities allows luxury pricing tiers.'
-        ]
-      };
-    });
-  }
 
   void _showAddRoomDialog(BuildContext context, SupabaseService db) {
     final formKey = GlobalKey<FormState>();
@@ -260,9 +239,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                           padding: const EdgeInsets.all(8),
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
+                            color: Colors.red.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
                           ),
                           child: Text(saveError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                         ),
@@ -319,7 +298,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               icon: const Icon(Icons.photo_library_outlined),
                               label: const Text('Pick Room Image'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                                backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                                 foregroundColor: Theme.of(context).primaryColor,
                               ),
                             ),
@@ -592,11 +571,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         amenities: room.amenities,
       );
 
-      if (mounted) {
-        Navigator.pop(context); // Dismiss spinner
-      }
-
       if (!mounted) return;
+
+      Navigator.pop(context); // Dismiss spinner
 
       showModalBottomSheet(
         context: context,
@@ -664,13 +641,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: status == 'High'
-                        ? Colors.red.withOpacity(0.08)
-                        : (status == 'Competitive' ? Colors.green.withOpacity(0.08) : Colors.blue.withOpacity(0.08)),
+                        ? Colors.red.withValues(alpha: 0.08)
+                        : (status == 'Competitive' ? Colors.green.withValues(alpha: 0.08) : Colors.blue.withValues(alpha: 0.08)),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: status == 'High'
-                          ? Colors.red.withOpacity(0.3)
-                          : (status == 'Competitive' ? Colors.green.withOpacity(0.3) : Colors.blue.withOpacity(0.3)),
+                          ? Colors.red.withValues(alpha: 0.3)
+                          : (status == 'Competitive' ? Colors.green.withValues(alpha: 0.3) : Colors.blue.withValues(alpha: 0.3)),
                     ),
                   ),
                   child: Row(
@@ -723,10 +700,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Dismiss spinner
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to calculate pricing: $e')),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to calculate pricing: $e')),
-      );
     }
   }
 
@@ -948,6 +925,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       setStateDialog(() {
                         isSaving = false;
                       });
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Error resolving ticket: $e')),
                       );
@@ -1059,10 +1037,10 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: deletionStatus == 'pending'
-                                                  ? Colors.orange.withOpacity(0.1)
+                                                  ? Colors.orange.withValues(alpha: 0.1)
                                                   : deletionStatus == 'approved'
-                                                      ? Colors.green.withOpacity(0.1)
-                                                      : Colors.red.withOpacity(0.1),
+                                                      ? Colors.green.withValues(alpha: 0.1)
+                                                      : Colors.red.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(4),
                                               border: Border.all(
                                                 color: deletionStatus == 'pending'
@@ -1289,7 +1267,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: trustScore >= 90 ? Colors.green.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+                                color: trustScore >= 90 ? Colors.green.withValues(alpha: 0.1) : Colors.amber.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -1506,7 +1484,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1516,7 +1494,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           const SizedBox(width: 4),
           Text(
             label.toUpperCase(),
-            style: TextStyle(color: color.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold),
+            style: TextStyle(color: color.withValues(alpha: 0.9), fontSize: 10, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -1687,7 +1665,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
+                              color: Colors.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -1715,9 +1693,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.08),
+                  color: Colors.orange.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -1816,7 +1794,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: student.trustScore >= 90 ? Colors.green.withOpacity(0.1) : Colors.amber.withOpacity(0.1),
+                              color: student.trustScore >= 90 ? Colors.green.withValues(alpha: 0.1) : Colors.amber.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -2041,33 +2019,58 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: _currentUser.verified 
+                        ? Colors.green.withValues(alpha: 0.12)
+                        : _currentUser.verificationDocs.isNotEmpty
+                            ? Colors.orange.withValues(alpha: 0.12)
+                            : Colors.amber.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _currentUser.verified 
+                          ? Colors.green.withValues(alpha: 0.4)
+                          : _currentUser.verificationDocs.isNotEmpty
+                              ? Colors.orange.withValues(alpha: 0.4)
+                              : Colors.amber.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: InkWell(
                     onTap: _currentUser.verified ? null : _showVerificationSheet,
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _currentUser.verified ? Icons.verified_user_rounded : Icons.gpp_maybe_rounded,
-                            color: _currentUser.verified ? Theme.of(context).primaryColor : Colors.amber,
+                            _currentUser.verified 
+                                ? Icons.verified_user_rounded 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? Icons.hourglass_top_rounded
+                                    : Icons.gpp_maybe_rounded,
+                            color: _currentUser.verified 
+                                ? Colors.green.shade700 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? Colors.orange.shade800
+                                    : Colors.amber.shade800,
                             size: 18,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _currentUser.verified 
-                                ? 'Verified (Score: ${_currentUser.trustScore})' 
-                                : 'Verify Now (Score: ${_currentUser.trustScore})',
+                                ? '✓ Verified Landlord Profile (Score: ${_currentUser.trustScore}%)' 
+                                : _currentUser.verificationDocs.isNotEmpty
+                                    ? '⏳ Landlord Docs Submitted - Awaiting Admin Approval'
+                                    : '⚠️ Verify Landlord Account & Property Deed',
                             style: TextStyle(
-                              color: _currentUser.verified ? Theme.of(context).primaryColor : Colors.amber,
+                              color: _currentUser.verified 
+                                  ? Colors.green.shade800 
+                                  : _currentUser.verificationDocs.isNotEmpty
+                                      ? Colors.orange.shade900
+                                      : Colors.amber.shade900,
                               fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -2075,6 +2078,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     ),
                   ),
                 ),
+
               ],
             ),
           ),
@@ -2136,7 +2140,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 Provider.of<AuthService>(context, listen: false).signOut();
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (_) => LoginSelectionScreen()),
+                  MaterialPageRoute(builder: (_) => const LoginSelectionScreen()),
                   (route) => false,
                 );
               },
@@ -2245,6 +2249,43 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     }
   }
 
+  Future<Uint8List?> _pickImageWithSourceChoice(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Select Document Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFFD32F2F)),
+              title: const Text('Take Photo with Camera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Colors.blue),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return null;
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, imageQuality: 70);
+    if (file != null) {
+      return await file.readAsBytes();
+    }
+    return null;
+  }
+
   void _showVerificationSheet() {
     final authService = Provider.of<AuthService>(context, listen: false);
     String selectedDocType = 'Property Deed';
@@ -2305,6 +2346,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   const Text('Select Document Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use
                     value: selectedDocType,
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2335,10 +2377,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-                                if (file != null) {
-                                  final bytes = await file.readAsBytes();
+                                final bytes = await _pickImageWithSourceChoice(context);
+                                if (bytes != null) {
                                   setSheetState(() {
                                     frontBytes = bytes;
                                   });
@@ -2347,18 +2387,18 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               child: Container(
                                 height: 110,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: Colors.grey.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                                 ),
                                 child: frontBytes == null
                                     ? const Center(
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+                                            Icon(Icons.add_photo_alternate_rounded, color: Colors.grey),
                                             SizedBox(height: 4),
-                                            Text('Capture Front', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text('Select Front (Camera/Gallery)', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                           ],
                                         ),
                                       )
@@ -2380,10 +2420,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             const SizedBox(height: 6),
                             GestureDetector(
                               onTap: () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-                                if (file != null) {
-                                  final bytes = await file.readAsBytes();
+                                final bytes = await _pickImageWithSourceChoice(context);
+                                if (bytes != null) {
                                   setSheetState(() {
                                     backBytes = bytes;
                                   });
@@ -2392,18 +2430,18 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                               child: Container(
                                 height: 110,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: Colors.grey.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
                                 ),
                                 child: backBytes == null
                                     ? const Center(
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+                                            Icon(Icons.add_photo_alternate_rounded, color: Colors.grey),
                                             SizedBox(height: 4),
-                                            Text('Capture Back', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text('Select Back (Camera/Gallery)', style: TextStyle(fontSize: 10, color: Colors.grey)),
                                           ],
                                         ),
                                       )
@@ -2418,6 +2456,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 24),
 
                   SizedBox(
@@ -2703,11 +2742,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                   }
                                   
                                   return Card(
-                                    color: isUnread ? Theme.of(context).primaryColor.withOpacity(0.04) : Colors.white,
+                                    color: isUnread ? Theme.of(context).primaryColor.withValues(alpha: 0.04) : Colors.white,
                                     margin: const EdgeInsets.symmetric(vertical: 4),
                                     child: ListTile(
                                       leading: CircleAvatar(
-                                        backgroundColor: color.withOpacity(0.1),
+                                        backgroundColor: color.withValues(alpha: 0.1),
                                         child: Icon(icon, color: color),
                                       ),
                                       title: Text(
@@ -2932,7 +2971,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFD32F2F).withOpacity(0.3),
+                      color: const Color(0xFFD32F2F).withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -2956,7 +2995,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Row(
@@ -3206,6 +3245,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     const SizedBox(height: 16),
 
                     DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
                       value: payoutMethod,
                       decoration: const InputDecoration(
                         labelText: 'Payout Transfer Method',

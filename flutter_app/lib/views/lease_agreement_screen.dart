@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
-import '../services/services.dart';
 
 class LeaseAgreementScreen extends StatefulWidget {
   final Booking booking;
@@ -83,7 +81,7 @@ class _LeaseAgreementScreenState extends State<LeaseAgreementScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.black12),
               ),
@@ -119,9 +117,9 @@ class _LeaseAgreementScreenState extends State<LeaseAgreementScreen> {
             Container(
               height: 180,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: primaryColor.withOpacity(0.4), width: 1.5),
+                border: Border.all(color: primaryColor.withValues(alpha: 0.4), width: 1.5),
               ),
               child: GestureDetector(
                 onPanUpdate: (details) {
